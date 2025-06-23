@@ -72,6 +72,9 @@ jobs:
             nohup java -jar qyl-backend-0.0.1-SNAPSHOT.jar --server.port=8081
             
             # 等待 10 秒检查是否成功启动
+
+
+            
             sleep 10
             
             # 检查新进程是否正在运行
