@@ -1,0 +1,92 @@
+name: Build and Deploy Java Project
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 设置 JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Maven 打包
+        run: mvn clean package -DskipTests
+
+      - name: 上传 jar 到服务器
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          key: ${{ secrets.SFTP_KEY }}
+          port: ${{ secrets.SFTP_PORT }}
+          source: target/qyl-backend-0.0.1-SNAPSHOT.jar
+          target: /www/wwwroot/qyl/api/
+          strip_components: 1
+
+      - name: 停止并重启 Java 项目
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          key: ${{ secrets.SFTP_KEY }}
+          port: ${{ secrets.SFTP_PORT }}
+          script: |
+            cd /www/wwwroot/qyl/api
+            
+            # 查找并停止旧的 Java 进程
+            OLD_PID=$(ps -ef | grep 'qyl-backend-0.0.1-SNAPSHOT.jar' | grep -v grep | awk '{print $2}')
+            if [ ! -z "$OLD_PID" ]; then
+              echo "停止旧进程 PID: $OLD_PID"
+              kill $OLD_PID
+              # 等待进程完全停止
+              for i in {1..30}; do
+                if ! ps -p $OLD_PID > /dev/null; then
+                  echo "进程已停止"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "强制终止进程"
+                  kill -9 $OLD_PID
+                fi
+                sleep 1
+              done
+            else
+              echo "没有找到运行中的旧进程"
+            fi
+            
+            # 等待 5 秒确保端口释放
+            sleep 5
+            
+            # 启动新的 jar 包
+            echo "开始启动新项目..."
+            nohup java -jar qyl-backend-0.0.1-SNAPSHOT.jar --server.port=8081
+            
+            # 等待 10 秒检查是否成功启动
+            sleep 10
+            
+            # 检查新进程是否正在运行
+            NEW_PID=$(ps -ef | grep 'qyl-backend-0.0.1-SNAPSHOT.jar' | grep -v grep | awk '{print $2}')
+            if [ ! -z "$NEW_PID" ]; then
+              echo "新项目启动成功，PID: $NEW_PID"
+            else
+              echo "新项目启动失败！"
+              exit 1
+            fi
+            
+            # 检查端口是否正常监听（假设使用 8081 端口）
+            if netstat -tunlp | grep 8081 > /dev/null; then
+              echo "端口 8081 已正常监听"
+            else
+              echo "警告：端口 8081 未监听"
+              exit 1
+            fi
