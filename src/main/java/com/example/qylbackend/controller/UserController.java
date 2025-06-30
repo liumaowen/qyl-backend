@@ -18,6 +18,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import com.example.qylbackend.model.AppVersion;
+import com.example.qylbackend.repository.AppVersionRepository;
+import java.time.LocalDateTime;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
+
 @RestController
 @RequestMapping("/api")
 public class UserController {
@@ -28,6 +36,9 @@ public class UserController {
 
     @Value("${file.upload-dir.apks}")
     private String apkUploadDir;
+
+    @Autowired
+    private AppVersionRepository appVersionRepository; // 注入 AppVersionRepository
 
     // 注入WebClient
     public UserController(WebClient webClient) {
@@ -40,6 +51,65 @@ public class UserController {
         return "{\"id\": 1, \"name\": \"张三\", \"email\": \"zhangsan@example.com\"}";
     }
 
+    // --- App 版本管理接口 ---
+
+    /**
+     * 新增一个App版本信息
+     * @param appVersion app版本信息
+     * @return 保存后的版本信息
+     */
+    @PostMapping("/versions")
+    public Mono<AppVersion> addAppVersion(@RequestBody AppVersion appVersion) {
+        // 自动设置创建时间为当前服务器时间
+        appVersion.setCreatedAt(LocalDateTime.now());
+        return Mono.fromCallable(() -> appVersionRepository.save(appVersion));
+    }
+
+    /**
+     * 获取最新的App版本信息
+     * @return 最新的版本信息
+     */
+    @GetMapping("/versions/latest")
+    public Mono<AppVersion> getLatestAppVersion() {
+        // findTopByOrderByCreatedAtDesc 是一个阻塞操作
+        // Mono.justOrEmpty 会在 Optional 为空时返回一个空的 Mono，避免了空指针异常
+        return Mono.justOrEmpty(appVersionRepository.findTopByOrderByCreatedAtDesc());
+    }
+
+    // --- 数据库操作示例 ---
+
+    /**
+     * 新增一个视频到数据库
+     * @param video 请求体中的JSON数据会自动映射到Video对象
+     * @return 保存后的Video对象
+     */
+    // @PostMapping("/videos")
+    // public Mono<Video> addVideo(@RequestBody Video video) {
+    //     // videoRepository.save 是一个阻塞操作，使用 Mono.fromCallable 包装以适应WebFlux
+    //     return Mono.fromCallable(() -> videoRepository.save(video));
+    // }
+
+    /**
+     * 从数据库获取所有视频
+     * @return 所有Video对象的列表
+     */
+    // @GetMapping("/videos")
+    // public Flux<Video> getAllVideos() {
+    //     // videoRepository.findAll 是一个阻塞操作，使用 Flux.fromIterable 包装
+    //     return Flux.fromIterable(videoRepository.findAll());
+    // }
+
+    /**
+     * 根据分类获取视频
+     * @param category URL路径参数
+     * @return 指定分类的Video对象列表
+     */
+    // @GetMapping("/videos/category/{category}")
+    // public Flux<Video> getVideosByCategory(@PathVariable String category) {
+    //     return Flux.fromIterable(videoRepository.findByCategory(category));
+    // }
+
+    // --- 代理接口 ---
 
     // 代理 apiopen.top
     @GetMapping("/getMiniVideo")
