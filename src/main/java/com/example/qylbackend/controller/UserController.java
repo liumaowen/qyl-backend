@@ -15,8 +15,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.ArrayList;
+import java.util.AbstractMap;
+import java.time.Duration;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import com.example.qylbackend.model.AppVersion;
@@ -33,6 +40,7 @@ public class UserController {
     private final WebClient webClient;
     private final WebClient apiopenClient = WebClient.create("https://api.apiopen.top");
     private final WebClient mmpClient = WebClient.create("https://api.mmp.cc");
+    private final WebClient linkCheckClient = WebClient.create();
 
     @Value("${file.upload-dir.apks}")
     private String apkUploadDir;
@@ -126,12 +134,42 @@ public class UserController {
                 )
                 .bodyToMono(String.class);
     }
-
+    // 检查链接是否有效（模拟浏览器访问）
+    private Mono<Boolean> isValidLink(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            return Mono.just(false);
+        }
+        
+        // 基本URL格式检查
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return Mono.just(false);
+        }
+        
+        return linkCheckClient.head()
+                .uri(url)
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(Duration.ofSeconds(5)) // 5秒超时
+                .map(response -> {
+                    int statusCode = response.getStatusCode().value();
+                    // 2xx和3xx状态码都认为是有效的（包括重定向）
+                    boolean isValid = (statusCode >= 200 && statusCode < 400);
+                    if (!isValid) {
+                        System.out.println("链接无效: " + url + " (状态码: " + statusCode + ")");
+                    }
+                    return isValid;
+                })
+                .onErrorResume(e -> {
+                    // 记录错误信息，包括网络错误、超时等
+                    System.out.println("链接检查失败: " + url + " (错误: " + e.getMessage() + ")");
+                    return Mono.just(false);
+                });
+    }
     // 代理 mmp.cc 视频1
     @GetMapping("/ksvideo")
     public Mono<String> getKsVideo() {
         String[] ids = {"jk", "YuMeng", "NvDa", "NvGao", "ReWu", "QingCun", "SheJie", "ChuanDa", "GaoZhiLiangXiaoJieJie", "HanFu", "HeiSi", "BianZhuang", "LuoLi", "TianMei", "BaiSi"};
-
+        ObjectMapper objectMapper = new ObjectMapper(); 
         return Flux.fromArray(ids)
                 .flatMap(id -> mmpClient.get()
                         .uri(uriBuilder -> uriBuilder.path("/api/ksvideo")
@@ -149,7 +187,55 @@ public class UserController {
                             return Mono.empty();
                         }))
                 .collectList()
-                .map(results -> "[" + String.join(",", results) + "]");
+                .flatMap(results -> {
+                    // 解析所有JSON响应并提取视频信息
+                    List<Map<String, Object>> allVideos = new ArrayList<>();
+                    
+                    for (String result : results) {
+                            try {
+                                // 如果解析数组失败，尝试解析单个对象
+                                Map<String, Object> video = objectMapper.readValue(result, new TypeReference<Map<String, Object>>() {});
+                                allVideos.add(video);
+                            } catch (Exception ex) {
+                                System.err.println("Failed to parse JSON: " + result + ", error: " + ex.getMessage());
+                            }
+                    }
+                    
+                    // 提取所有视频URL
+                    List<String> videoUrls = allVideos.stream()
+                            .map(v -> (String) v.get("link"))
+                            .filter(url -> url != null && !url.trim().isEmpty())
+                            .collect(Collectors.toList());
+                    
+                    if (videoUrls.isEmpty()) {
+                        return Mono.just("[]");
+                    }
+                    
+                    // 并发检查链接有效性，模拟浏览器访问
+                    return Flux.fromIterable(videoUrls)
+                            .flatMap(url -> isValidLink(url)
+                                    .map(isValid -> new AbstractMap.SimpleEntry<>(url, isValid)), 5) // 并发度设为5
+                            .collectList()
+                            .map(urlValidityMap -> {
+                                // 获取有效的URL集合
+                                Set<String> validUrls = urlValidityMap.stream()
+                                        .filter(entry -> entry.getValue())
+                                        .map(Map.Entry::getKey)
+                                        .collect(Collectors.toSet());
+                                
+                                // 过滤出有效的视频信息
+                                List<Map<String, Object>> validVideos = allVideos.stream()
+                                        .filter(v -> v.get("link") != null && validUrls.contains(v.get("link")))
+                                        .collect(Collectors.toList());
+                                
+                                try {
+                                    return objectMapper.writeValueAsString(validVideos);
+                                } catch (Exception e) {
+                                    System.err.println("Failed to serialize valid videos: " + e.getMessage());
+                                    return "[]";
+                                }
+                            });
+                });
     }
 
     // 代理 mmp.cc 视频2

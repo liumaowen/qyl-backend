@@ -1,5 +1,6 @@
 package com.example.qylbackend.model;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -24,6 +25,6 @@ public class AppVersion {
     private String updateLog; // 更新日志
 
     private String downloadUrl; // APK下载地址
-
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime createdAt; // 发布日期和时间
 } 
