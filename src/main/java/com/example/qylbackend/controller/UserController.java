@@ -32,6 +32,10 @@ import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
+import com.example.qylbackend.repository.AdRepository;
+import com.example.qylbackend.model.Ad;
+import com.example.qylbackend.repository.ConfigEntryRepository;
+import com.example.qylbackend.model.ConfigEntry;
 
 @RestController
 @RequestMapping("/api")
@@ -47,6 +51,10 @@ public class UserController {
 
     @Autowired
     private AppVersionRepository appVersionRepository; // 注入 AppVersionRepository
+    @Autowired
+    private AdRepository adRepository; // 注入广告Repository
+    @Autowired
+    private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
 
     // 注入WebClient
     public UserController(WebClient webClient) {
@@ -287,5 +295,33 @@ public class UserController {
             System.err.println("Error reading APK directory: " + e.getMessage());
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * 查询所有广告信息
+     * @return 广告列表
+     */
+    @GetMapping("/ads")
+    public List<Ad> getAllAds() {
+        return adRepository.findAll();
+    }
+
+    /**
+     * 查询所有配置项
+     * @return 配置项列表
+     */
+    @GetMapping("/configs")
+    public List<ConfigEntry> getAllConfigs() {
+        return configEntryRepository.findAll();
+    }
+
+    /**
+     * 根据key查询配置项
+     * @param key 配置项key
+     * @return 配置项对象或null
+     */
+    @GetMapping("/config")
+    public ConfigEntry getConfigByKey(@RequestParam String key) {
+        return configEntryRepository.findByKey(key);
     }
 }
