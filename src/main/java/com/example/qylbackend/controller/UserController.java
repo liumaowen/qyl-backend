@@ -324,4 +324,22 @@ public class UserController {
     public ConfigEntry getConfigByKey(@RequestParam String key) {
         return configEntryRepository.findByKey(key);
     }
+    /**
+     * 根据key查询配置项
+     * @param key 配置项key
+     * @return 配置项对象或null
+     */
+    @GetMapping("/config/yanzheng")
+    public Map<String, Object> yanzheng(@RequestParam String value) {
+        Map<String, Object> result = new HashMap<>();
+        String key = "qyl_shunle_koul";
+        ConfigEntry con = configEntryRepository.findByKey(key);
+        if (con == null || !con.getValue().equals(value)) {
+            result.put("result", false);
+            
+        }else {
+            result.put("result", true);
+        }
+        return result;
+    }
 }
