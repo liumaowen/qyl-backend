@@ -9,4 +9,5 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface DeviceInfoRepository extends JpaRepository<DeviceInfo, Long> {
+    DeviceInfo findByDeviceId(String deviceId);
 } 
