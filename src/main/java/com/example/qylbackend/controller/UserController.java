@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import com.example.qylbackend.repository.AdRepository;
 import com.example.qylbackend.model.Ad;
 import com.example.qylbackend.repository.ConfigEntryRepository;
+import com.example.qylbackend.repository.DeviceInfoRepository;
 import com.example.qylbackend.model.ConfigEntry;
 
 @RestController
