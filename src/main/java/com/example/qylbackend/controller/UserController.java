@@ -351,23 +351,7 @@ public class UserController {
     // 保存设备信息
     @PostMapping("/savedevice")
     public DeviceInfo saveDevice(@RequestBody DeviceInfo deviceInfo) {
-        DeviceInfo existing = deviceInfoRepository.findByDeviceId(deviceInfo.getDeviceId());
-        if (existing != null) {
-            // 更新所有字段（可根据实际需求选择更新哪些字段）
-            existing.setDeviceModel(deviceInfo.getDeviceModel());
-            existing.setPlatform(deviceInfo.getPlatform());
-            existing.setAppVersion(deviceInfo.getAppVersion());
-            existing.setOsVersion(deviceInfo.getOsVersion());
-            existing.setFirstUseTime(deviceInfo.getFirstUseTime());
-            existing.setLastUseTime(deviceInfo.getLastUseTime());
-            existing.setUseCount(deviceInfo.getUseCount());
-            existing.setIpAddress(deviceInfo.getIpAddress());
-            existing.setAddress(deviceInfo.getAddress());
-            existing.setEvent(deviceInfo.getEvent());
-            return deviceInfoRepository.save(existing);
-        } else {
-            return deviceInfoRepository.save(deviceInfo);
-        }
+        return deviceInfoRepository.save(deviceInfo);
     }
 
     // 查询设备信息（通过deviceId）

@@ -33,4 +33,5 @@ public class DeviceInfo {
     private String ipAddress;     // IP地址
     private String address;      // IP地理位置 省市县
     private String event;        // 事件
+    private String additionaldatastr;        // 事件集合
 } 
