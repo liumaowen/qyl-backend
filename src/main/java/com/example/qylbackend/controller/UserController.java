@@ -59,7 +59,7 @@ public class UserController {
     @Autowired
     private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
     @Autowired
-    private DeviceInfoEntryRepository deviceInfoRepository; // 注入配置表Repository
+    private DeviceInfoRepository deviceInfoRepository; // 注入配置表Repository
 
     // 注入WebClient
     public UserController(WebClient webClient) {
