@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import com.example.qylbackend.model.AppVersion;
+import com.example.qylbackend.model.DeviceInfo;
 import com.example.qylbackend.repository.AppVersionRepository;
 import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -55,6 +56,8 @@ public class UserController {
     private AdRepository adRepository; // 注入广告Repository
     @Autowired
     private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
+    @Autowired
+    private DeviceInfoEntryRepository deviceInfoRepository; // 注入配置表Repository
 
     // 注入WebClient
     public UserController(WebClient webClient) {
@@ -323,5 +326,17 @@ public class UserController {
     @GetMapping("/config")
     public ConfigEntry getConfigByKey(@RequestParam String key) {
         return configEntryRepository.findByKey(key);
+    }
+
+    // 保存设备信息
+    @PostMapping("/savedevice")
+    public DeviceInfo saveDevice(@RequestBody DeviceInfo deviceInfo) {
+        return deviceInfoRepository.save(deviceInfo);
+    }
+
+    // 查询设备信息（通过deviceId）
+    @GetMapping("/getdevice")
+    public List<DeviceInfo> getDevice() {
+        return deviceInfoRepository.findAll();
     }
 }
