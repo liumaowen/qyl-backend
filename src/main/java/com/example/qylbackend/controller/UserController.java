@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.AbstractMap;
@@ -328,6 +329,24 @@ public class UserController {
         return configEntryRepository.findByKey(key);
     }
 
+    /**
+     * 根据key查询配置项
+     * @param key 配置项key
+     * @return 配置项对象或null
+     */
+    @GetMapping("/config/yanzheng")
+    public Map<String, Object> yanzheng(@RequestParam String value) {
+        Map<String, Object> result = new HashMap<>();
+        String key = "qyl_shunle_koul";
+        ConfigEntry con = configEntryRepository.findByKey(key);
+        if (con == null || !con.getValue().equals(value)) {
+            result.put("result", false);
+            
+        }else {
+            result.put("result", true);
+        }
+        return result;
+    }
     // 保存设备信息
     @PostMapping("/savedevice")
     public DeviceInfo saveDevice(@RequestBody DeviceInfo deviceInfo) {

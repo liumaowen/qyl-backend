@@ -18,4 +18,5 @@ public class Ad {
 
     private String link; // 广告链接
     private String description; // 广告描述
+    private String imageUrl; // 图片链接
 } 
