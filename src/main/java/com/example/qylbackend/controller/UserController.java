@@ -39,6 +39,7 @@ import com.example.qylbackend.model.Ad;
 import com.example.qylbackend.repository.ConfigEntryRepository;
 import com.example.qylbackend.repository.DeviceInfoRepository;
 import com.example.qylbackend.model.ConfigEntry;
+import com.example.qylbackend.service.ApiParseService;
 
 @RestController
 @RequestMapping("/api")
@@ -60,6 +61,8 @@ public class UserController {
     private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
     @Autowired
     private DeviceInfoRepository deviceInfoRepository; // 注入配置表Repository
+    @Autowired
+    private ApiParseService apiParseService; // 注入API解析服务
 
     // 注入WebClient
     public UserController(WebClient webClient) {
@@ -96,41 +99,6 @@ public class UserController {
         // Mono.justOrEmpty 会在 Optional 为空时返回一个空的 Mono，避免了空指针异常
         return Mono.justOrEmpty(appVersionRepository.findTopByOrderByCreatedAtDesc());
     }
-
-    // --- 数据库操作示例 ---
-
-    /**
-     * 新增一个视频到数据库
-     * @param video 请求体中的JSON数据会自动映射到Video对象
-     * @return 保存后的Video对象
-     */
-    // @PostMapping("/videos")
-    // public Mono<Video> addVideo(@RequestBody Video video) {
-    //     // videoRepository.save 是一个阻塞操作，使用 Mono.fromCallable 包装以适应WebFlux
-    //     return Mono.fromCallable(() -> videoRepository.save(video));
-    // }
-
-    /**
-     * 从数据库获取所有视频
-     * @return 所有Video对象的列表
-     */
-    // @GetMapping("/videos")
-    // public Flux<Video> getAllVideos() {
-    //     // videoRepository.findAll 是一个阻塞操作，使用 Flux.fromIterable 包装
-    //     return Flux.fromIterable(videoRepository.findAll());
-    // }
-
-    /**
-     * 根据分类获取视频
-     * @param category URL路径参数
-     * @return 指定分类的Video对象列表
-     */
-    // @GetMapping("/videos/category/{category}")
-    // public Flux<Video> getVideosByCategory(@PathVariable String category) {
-    //     return Flux.fromIterable(videoRepository.findByCategory(category));
-    // }
-
-    // --- 代理接口 ---
 
     // 代理 apiopen.top
     @GetMapping("/getMiniVideo")
@@ -358,5 +326,44 @@ public class UserController {
     @GetMapping("/getdevice")
     public List<DeviceInfo> getDevice() {
         return deviceInfoRepository.findAll();
+    }
+
+    // --- API解析接口 ---
+
+    /**
+     * 获取第一页的重定向URL
+     * @param url 原始URL
+     * @return 重定向后的URL
+     */
+    @GetMapping("/parse/first-url")
+    public Mono<String> parseFirstUrl(@RequestParam String url) {
+        return apiParseService.getFirstUrl(url);
+    }
+
+    /**
+     * 获取第二页的URL
+     * @param url 第一页URL
+     * @return 第二页URL
+     */
+    @GetMapping("/parse/second-url")
+    public Mono<String> parseSecondUrl(@RequestParam String url) {
+        return apiParseService.getSecondUrl(url);
+    }
+
+    /**
+     * 获取完整流程的URL（从第一页到第二页）
+     * @param originalUrl 原始URL
+     * @return 最终的第二页URL
+     */
+    @GetMapping("/parse/complete")
+    public Mono<String> parseCompleteUrl(@RequestParam String originalUrl) {
+        return apiParseService.getFirstUrl(originalUrl)
+                .flatMap(firstUrl -> {
+                    if (firstUrl.equals(originalUrl)) {
+                        // 如果没有重定向，直接尝试解析第二页
+                        return apiParseService.getSecondUrl(firstUrl);
+                    }
+                    return apiParseService.getSecondUrl(firstUrl);
+                });
     }
 }
