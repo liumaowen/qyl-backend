@@ -328,7 +328,7 @@ public class UserController {
 
     // 保存建议
     @PostMapping("/savesuggest")
-    public DeviceInfo saveSuggest(@RequestBody Suggest suggest) {
+    public Suggest saveSuggest(@RequestBody Suggest suggest) {
         return suggestRepository.save(suggest);
     }
 
