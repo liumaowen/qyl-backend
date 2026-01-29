@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.example.qylbackend.model.AppVersion;
 import com.example.qylbackend.model.DeviceInfo;
+import com.example.qylbackend.model.Suggest;
 import com.example.qylbackend.repository.AppVersionRepository;
 import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,6 +39,7 @@ import com.example.qylbackend.repository.AdRepository;
 import com.example.qylbackend.model.Ad;
 import com.example.qylbackend.repository.ConfigEntryRepository;
 import com.example.qylbackend.repository.DeviceInfoRepository;
+import com.example.qylbackend.repository.SuggestRepository;
 import com.example.qylbackend.model.ConfigEntry;
 import com.example.qylbackend.service.ApiParseService;
 
@@ -61,6 +63,8 @@ public class UserController {
     private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
     @Autowired
     private DeviceInfoRepository deviceInfoRepository; // 注入配置表Repository
+    @Autowired
+    private SuggestRepository suggestRepository; // 注入配置表Repository
     @Autowired
     private ApiParseService apiParseService; // 注入API解析服务
 
@@ -320,6 +324,12 @@ public class UserController {
     @PostMapping("/savedevice")
     public DeviceInfo saveDevice(@RequestBody DeviceInfo deviceInfo) {
         return deviceInfoRepository.save(deviceInfo);
+    }
+
+    // 保存建议
+    @PostMapping("/savesuggest")
+    public DeviceInfo saveSuggest(@RequestBody Suggest suggest) {
+        return suggestRepository.save(suggest);
     }
 
     // 查询设备信息（通过deviceId）
