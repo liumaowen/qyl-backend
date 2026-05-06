@@ -29,19 +29,24 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.example.qylbackend.model.AppVersion;
 import com.example.qylbackend.model.DeviceInfo;
+import com.example.qylbackend.model.Order;
 import com.example.qylbackend.model.Suggest;
 import com.example.qylbackend.repository.AppVersionRepository;
 import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.PathVariable;
+
 import com.example.qylbackend.repository.AdRepository;
 import com.example.qylbackend.model.Ad;
 import com.example.qylbackend.repository.ConfigEntryRepository;
 import com.example.qylbackend.repository.DeviceInfoRepository;
+import com.example.qylbackend.repository.DeviceRepository;
+import com.example.qylbackend.repository.OrderRepository;
 import com.example.qylbackend.repository.SuggestRepository;
 import com.example.qylbackend.model.ConfigEntry;
+import com.example.qylbackend.model.Device;
 import com.example.qylbackend.service.ApiParseService;
+import com.example.qylbackend.utils.MD5Utils;
 
 @RestController
 @RequestMapping("/api")
@@ -51,6 +56,8 @@ public class UserController {
     private final WebClient apiopenClient = WebClient.create("https://api.apiopen.top");
     private final WebClient mmpClient = WebClient.create("https://api.mmp.cc");
     private final WebClient linkCheckClient = WebClient.create();
+    public static final String MERCHANTNUM = "628977442052521984"; // 商户号
+    public static final String SECRETKEY = "7bc70475e405fcbfbfcf192e1b552a59"; // 商户密钥
 
     @Value("${file.upload-dir.apks}")
     private String apkUploadDir;
@@ -63,6 +70,10 @@ public class UserController {
     private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
     @Autowired
     private DeviceInfoRepository deviceInfoRepository; // 注入配置表Repository
+    @Autowired
+    private OrderRepository orderRepository; // 注入配置表Repository
+    @Autowired
+    private DeviceRepository deviceRepository; // 注入配置表Repository
     @Autowired
     private SuggestRepository suggestRepository; // 注入配置表Repository
     @Autowired
@@ -323,6 +334,18 @@ public class UserController {
     // 保存设备信息
     @PostMapping("/savedevice")
     public DeviceInfo saveDevice(@RequestBody DeviceInfo deviceInfo) {
+        if (deviceInfo.getDeviceId() != null) {
+            Device device = deviceRepository.findByDeviceId(deviceInfo.getDeviceId());
+            if (device != null) {
+                device.setLastUseTime(LocalDateTime.now());
+            } else {
+                device = new Device();
+                device.setDeviceId(deviceInfo.getDeviceId());
+                device.setFirstUseTime(LocalDateTime.now());
+                device.setLastUseTime(LocalDateTime.now());
+            }
+            deviceRepository.save(device);
+        }
         return deviceInfoRepository.save(deviceInfo);
     }
 
@@ -336,6 +359,137 @@ public class UserController {
     @GetMapping("/getdevice")
     public List<DeviceInfo> getDevice() {
         return deviceInfoRepository.findAll();
+    }
+    // 创建订单
+    @GetMapping("/createorder")
+    public Map<String, Object> createOrder(@RequestParam String deviceId) {
+        Map<String, Object> result = new HashMap<>();
+
+        String merchantNum = MERCHANTNUM;// 商户号
+        String secretKey = SECRETKEY;//商户密钥
+        String notifyUrl = "https://slkk.dpdns.org/api/notify";// 填写您的接收支付成功的异步通知地址
+        String amount = "10.00";// 支付金额
+        String payType = "alipay";// 请求支付类型 
+        String payApiUrl = "https://api-4s15w84vxa0w.zhifu.fm.it88168.com/api/startOrder";// 发起订单地址
+        String orderNo = generateOrderNo(deviceId);// 商户订单号
+        String signStr = merchantNum + orderNo + amount + notifyUrl + secretKey;
+        String sign = MD5Utils.md5(signStr);// md5签名
+        // 保存订单
+        Order order = new Order();
+        order.setDeviceId(deviceId);
+        order.setNo(orderNo);
+        order.setState("0");
+        order.setFirstUseTime(LocalDateTime.now());
+        orderRepository.save(order);
+
+        String paramStr = buildQueryParams(Map.of(
+                "merchantNum", merchantNum,
+                "orderNo", orderNo,
+                "amount", amount,
+                "notifyUrl", notifyUrl,
+                "payType", payType,
+                "attch", deviceId,
+                "sign", sign,
+                "subject", "一杯奶茶"
+        ));
+
+        String apiUrl = payApiUrl + "?" + paramStr;
+
+        return webClient.post()
+                .uri(apiUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 6.2; Win64; x64) AppleWebKit/537.36")
+                .retrieve()
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(10))
+                .map(response -> {
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        Map<String, Object> respMap = mapper.readValue(response, new TypeReference<Map<String, Object>>() {});
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> data = (Map<String, Object>) respMap.get("data");
+                        String payUrl = data != null ? (String) data.get("payUrl") : null;
+                        result.put("success", true);
+                        result.put("payUrl", payUrl);
+                    } catch (Exception e) {
+                        result.put("success", false);
+                        result.put("msg", "解析支付响应失败: " + e.getMessage());
+                    }
+                    return result;
+                })
+                .onErrorResume(e -> {
+                    result.put("success", false);
+                    result.put("msg", "发起支付订单失败: " + e.getMessage());
+                    return Mono.just(result);
+                })
+                .block();
+    }
+
+    private String generateOrderNo(String deviceId) {
+        String timestamp = String.valueOf(System.currentTimeMillis());
+        return deviceId + timestamp;
+    }
+
+    private String buildQueryParams(Map<String, String> params) {
+        List<String> keys = new ArrayList<>(params.keySet());
+        Collections.sort(keys);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < keys.size(); i++) {
+            String key = keys.get(i);
+            String value = params.get(key);
+            try {
+                value = java.net.URLEncoder.encode(value, "UTF-8");
+            } catch (java.io.UnsupportedEncodingException e) {
+                throw new RuntimeException(e);
+            }
+            sb.append(key).append("=").append(value);
+            if (i < keys.size() - 1) {
+                sb.append("&");
+            }
+        }
+        return sb.toString();
+    }
+
+    // 验证回调签名
+    @GetMapping("/notify")
+    public String notify(@RequestParam Map<String, String> map){
+        String merchantNum = map.getOrDefault("merchantNum", "");
+        String orderNo = map.getOrDefault("orderNo", "");
+        String amount = map.getOrDefault("amount", "");
+        String sign = map.getOrDefault("sign", "");
+        String state = map.getOrDefault("state", "");
+        // 验证商户ID
+        if (!MERCHANTNUM.equals(merchantNum)) {
+          return "false";
+        }
+        String signStr = state + merchantNum + orderNo + amount + SECRETKEY;
+        if (!sign.equals(MD5Utils.md5(signStr))) {
+            return "false";
+        }
+        List<Order> orders = orderRepository.findByNoAndState(orderNo, "0");
+        if (orders.isEmpty()) {
+            return "false";
+        }
+        Order order = orders.get(0);
+        if ("1".equals(order.getState())) {
+            return "success";
+        }
+        order.setState(state);
+        order.setLastUseTime(LocalDateTime.now());
+        orderRepository.save(order);
+        return "success";
+    }
+
+    // 查询订单是否付款成功
+    @GetMapping("/getstate")
+    public Map<String, Object> getState(@RequestParam String deviceId ) {
+        Map<String, Object> result = new HashMap<>();
+        List<Order> orders = orderRepository.findByDeviceIdAndState(deviceId, "1");
+        if (orders.isEmpty()) {
+            result.put("state", false);
+        } else {
+            result.put("state", true);
+        }
+        return result;
     }
 
     // --- API解析接口 ---

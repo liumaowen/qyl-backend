@@ -1,6 +1,9 @@
 package com.example.qylbackend.repository;
 
 import com.example.qylbackend.model.DeviceInfo;
+
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -9,5 +12,5 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface DeviceInfoRepository extends JpaRepository<DeviceInfo, Long> {
-    DeviceInfo findByDeviceId(String deviceId);
+    List<DeviceInfo> findByDeviceId(String deviceId);
 } 
