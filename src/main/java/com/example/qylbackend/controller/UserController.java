@@ -362,18 +362,24 @@ public class UserController {
     }
     // 创建订单
     @GetMapping("/createorder")
-    public Map<String, Object> createOrder(@RequestParam String deviceId) {
+    public Mono<Map<String, Object>> createOrder(@RequestParam String deviceId) {
         Map<String, Object> result = new HashMap<>();
 
         String merchantNum = MERCHANTNUM;// 商户号
         String secretKey = SECRETKEY;//商户密钥
         String notifyUrl = "https://slkk.dpdns.org/api/notify";// 填写您的接收支付成功的异步通知地址
         String amount = "10.00";// 支付金额
-        String payType = "alipay";// 请求支付类型 
+        String payType = "alipay";// 请求支付类型
         String payApiUrl = "https://api-4s15w84vxa0w.zhifu.fm.it88168.com/api/startOrder";// 发起订单地址
         String orderNo = generateOrderNo(deviceId);// 商户订单号
-        String signStr = merchantNum + orderNo + amount + notifyUrl + secretKey;
+
+        // 对notifyUrl进行编码以用于签名（按支付接口规范）
+        String encodedNotifyUrlForSign = java.net.URLEncoder.encode(notifyUrl, java.nio.charset.StandardCharsets.UTF_8);
+
+        // 构建签名字符串（使用编码后的notifyUrl进行签名计算）
+        String signStr = merchantNum + orderNo + amount + encodedNotifyUrlForSign + secretKey;
         String sign = MD5Utils.md5(signStr);// md5签名
+
         // 保存订单
         Order order = new Order();
         order.setDeviceId(deviceId);
@@ -386,7 +392,7 @@ public class UserController {
                 "merchantNum", merchantNum,
                 "orderNo", orderNo,
                 "amount", amount,
-                "notifyUrl", notifyUrl,
+                "notifyUrl", notifyUrl, // 传递原始URL，由buildQueryParams方法进行编码
                 "payType", payType,
                 "attch", deviceId,
                 "sign", sign,
@@ -420,13 +426,25 @@ public class UserController {
                     result.put("success", false);
                     result.put("msg", "发起支付订单失败: " + e.getMessage());
                     return Mono.just(result);
-                })
-                .block();
+                });
     }
 
     private String generateOrderNo(String deviceId) {
+        // 获取当前时间戳
         String timestamp = String.valueOf(System.currentTimeMillis());
-        return deviceId + timestamp;
+
+        // 将deviceId转换为数字（取其hashCode的绝对值）
+        String deviceNumeric = String.valueOf(Math.abs(deviceId.hashCode()));
+
+        // 组合并截取，确保总长度不超过32位
+        String combined = deviceNumeric + timestamp;
+
+        if (combined.length() <= 32) {
+            return combined;
+        } else {
+            // 如果超过32位，则截取前32位
+            return combined.substring(0, 32);
+        }
     }
 
     private String buildQueryParams(Map<String, String> params) {
@@ -441,6 +459,21 @@ public class UserController {
             } catch (java.io.UnsupportedEncodingException e) {
                 throw new RuntimeException(e);
             }
+            sb.append(key).append("=").append(value);
+            if (i < keys.size() - 1) {
+                sb.append("&");
+            }
+        }
+        return sb.toString();
+    }
+
+    private String buildQueryParamsForUrl(Map<String, String> params) {
+        List<String> keys = new ArrayList<>(params.keySet());
+        Collections.sort(keys);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < keys.size(); i++) {
+            String key = keys.get(i);
+            String value = params.get(key);
             sb.append(key).append("=").append(value);
             if (i < keys.size() - 1) {
                 sb.append("&");
