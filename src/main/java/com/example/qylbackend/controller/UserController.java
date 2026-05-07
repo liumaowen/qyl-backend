@@ -29,7 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.example.qylbackend.model.AppVersion;
 import com.example.qylbackend.model.DeviceInfo;
-import com.example.qylbackend.model.Order;
+import com.example.qylbackend.model.MyOrder;
 import com.example.qylbackend.model.Suggest;
 import com.example.qylbackend.repository.AppVersionRepository;
 import java.time.LocalDateTime;
@@ -41,7 +41,7 @@ import com.example.qylbackend.model.Ad;
 import com.example.qylbackend.repository.ConfigEntryRepository;
 import com.example.qylbackend.repository.DeviceInfoRepository;
 import com.example.qylbackend.repository.DeviceRepository;
-import com.example.qylbackend.repository.OrderRepository;
+import com.example.qylbackend.repository.MyOrderRepository;
 import com.example.qylbackend.repository.SuggestRepository;
 import com.example.qylbackend.model.ConfigEntry;
 import com.example.qylbackend.model.Device;
@@ -71,7 +71,7 @@ public class UserController {
     @Autowired
     private DeviceInfoRepository deviceInfoRepository; // 注入配置表Repository
     @Autowired
-    private OrderRepository orderRepository; // 注入配置表Repository
+    private MyOrderRepository orderRepository; // 注入配置表Repository
     @Autowired
     private DeviceRepository deviceRepository; // 注入配置表Repository
     @Autowired
@@ -381,7 +381,7 @@ public class UserController {
         String sign = MD5Utils.md5(signStr);// md5签名
 
         // 保存订单
-        Order order = new Order();
+        MyOrder order = new MyOrder();
         order.setDeviceId(deviceId);
         order.setNo(orderNo);
         order.setState("0");
@@ -485,6 +485,7 @@ public class UserController {
     // 验证回调签名
     @GetMapping("/notify")
     public String notify(@RequestParam Map<String, String> map){
+        System.out.println("收到支付回调: " + map.toString());
         String merchantNum = map.getOrDefault("merchantNum", "");
         String orderNo = map.getOrDefault("orderNo", "");
         String amount = map.getOrDefault("amount", "");
@@ -498,11 +499,11 @@ public class UserController {
         if (!sign.equals(MD5Utils.md5(signStr))) {
             return "false";
         }
-        List<Order> orders = orderRepository.findByNoAndState(orderNo, "0");
+        List<MyOrder> orders = orderRepository.findByNoAndState(orderNo, "0");
         if (orders.isEmpty()) {
             return "false";
         }
-        Order order = orders.get(0);
+        MyOrder order = orders.get(0);
         if ("1".equals(order.getState())) {
             return "success";
         }
@@ -516,7 +517,7 @@ public class UserController {
     @GetMapping("/getstate")
     public Map<String, Object> getState(@RequestParam String deviceId ) {
         Map<String, Object> result = new HashMap<>();
-        List<Order> orders = orderRepository.findByDeviceIdAndState(deviceId, "1");
+        List<MyOrder> orders = orderRepository.findByDeviceIdAndState(deviceId, "1");
         if (orders.isEmpty()) {
             result.put("state", false);
         } else {
