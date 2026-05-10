@@ -494,23 +494,28 @@ public class UserController {
         String state = map.getOrDefault("state", "");
         // 验证商户ID
         if (!MERCHANTNUM.equals(merchantNum)) {
+          System.out.println("验证商户ID失败: ");
           return "false";
         }
         String signStr = state + merchantNum + orderNo + amount + SECRETKEY;
         if (!sign.equals(MD5Utils.md5(signStr))) {
+            System.out.println("签名验证失败: " + " (计算的签名: " + MD5Utils.md5(signStr) + ", 回调中的签名: " + sign + ")");
             return "false";
         }
         List<MyOrder> orders = orderRepository.findByNoAndState(orderNo, "0");
         if (orders.isEmpty()) {
+            System.out.println("订单不存在或状态不正确: " + orderNo);
             return "false";
         }
         MyOrder order = orders.get(0);
         if ("1".equals(order.getState())) {
+            System.out.println("订单已付款成功: " + orderNo);
             return "success";
         }
         order.setState(state);
         order.setLastUseTime(LocalDateTime.now());
         orderRepository.save(order);
+        System.out.println("订单状态更新: " + orderNo);
         return "success";
     }
 
