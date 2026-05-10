@@ -362,14 +362,14 @@ public class UserController {
     }
     // 创建订单
     @GetMapping("/createorder")
-    public Mono<Map<String, Object>> createOrder(@RequestParam String deviceId, @RequestParam String payType)) {
+    public Mono<Map<String, Object>> createOrder(@RequestParam String deviceId, @RequestParam String payType) {
         Map<String, Object> result = new HashMap<>();
 
         String merchantNum = MERCHANTNUM;// 商户号
         String secretKey = SECRETKEY;//商户密钥
         String notifyUrl = "https://slkk.dpdns.org/api/notify";// 填写您的接收支付成功的异步通知地址
         String amount = "10.00";// 支付金额
-        String payType = payType;// "alipay" "wechat" 请求支付类型
+        // String payType = payType;// "alipay" "wechat" 请求支付类型
         String payApiUrl = "https://api-4s15w84vxa0w.zhifu.fm.it88168.com/api/startOrder";// 发起订单地址
         String orderNo = generateOrderNo(deviceId);// 商户订单号
 
