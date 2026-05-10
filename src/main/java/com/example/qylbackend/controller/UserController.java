@@ -396,6 +396,7 @@ public class UserController {
                 "payType", payType,
                 "attch", deviceId,
                 "sign", sign,
+                "payDuration","1",
                 "subject", "一杯奶茶"
         ));
 
