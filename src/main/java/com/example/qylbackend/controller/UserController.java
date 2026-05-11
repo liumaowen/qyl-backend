@@ -46,6 +46,7 @@ import com.example.qylbackend.repository.SuggestRepository;
 import com.example.qylbackend.model.ConfigEntry;
 import com.example.qylbackend.model.Device;
 import com.example.qylbackend.service.ApiParseService;
+import com.example.qylbackend.service.DingTalkNotifyService;
 import com.example.qylbackend.utils.MD5Utils;
 
 @RestController
@@ -78,6 +79,8 @@ public class UserController {
     private SuggestRepository suggestRepository; // 注入配置表Repository
     @Autowired
     private ApiParseService apiParseService; // 注入API解析服务
+    @Autowired
+    private DingTalkNotifyService dingTalkNotifyService; // 注入钉钉通知服务
 
     // 注入WebClient
     public UserController(WebClient webClient) {
@@ -412,20 +415,51 @@ public class UserController {
                     try {
                         ObjectMapper mapper = new ObjectMapper();
                         Map<String, Object> respMap = mapper.readValue(response, new TypeReference<Map<String, Object>>() {});
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> data = (Map<String, Object>) respMap.get("data");
-                        String payUrl = data != null ? (String) data.get("payUrl") : null;
-                        result.put("success", true);
-                        result.put("payUrl", payUrl);
+                        boolean apiSuccess = Boolean.TRUE.equals(respMap.get("success"));
+                        if (apiSuccess) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> data = (Map<String, Object>) respMap.get("data");
+                            String payUrl = data != null ? (String) data.get("payUrl") : null;
+                            result.put("success", true);
+                            result.put("payUrl", payUrl);
+                            dingTalkNotifyService.sendAsync("支付订单创建成功",
+                                    "## 支付订单通知\n\n" +
+                                    "- **状态**: 成功\n" +
+                                    "- **订单号**: " + orderNo + "\n" +
+                                    "- **设备ID**: " + deviceId + "\n" +
+                                    "- **支付链接**: " + payUrl + "\n");
+                        } else {
+                            String apiMsg = respMap.get("msg") != null ? respMap.get("msg").toString() : "未知错误";
+                            result.put("success", false);
+                            result.put("msg", apiMsg);
+                            dingTalkNotifyService.sendAsync("支付订单创建失败",
+                                    "## 支付订单异常\n\n" +
+                                    "- **状态**: 业务失败\n" +
+                                    "- **订单号**: " + orderNo + "\n" +
+                                    "- **设备ID**: " + deviceId + "\n" +
+                                    "- **原因**: " + apiMsg + "\n");
+                        }
                     } catch (Exception e) {
                         result.put("success", false);
                         result.put("msg", "解析支付响应失败: " + e.getMessage());
+                        dingTalkNotifyService.sendAsync("支付订单创建失败",
+                                "## 支付订单异常\n\n" +
+                                "- **状态**: 解析失败\n" +
+                                "- **订单号**: " + orderNo + "\n" +
+                                "- **设备ID**: " + deviceId + "\n" +
+                                "- **原因**: " + e.getMessage() + "\n");
                     }
                     return result;
                 })
                 .onErrorResume(e -> {
                     result.put("success", false);
                     result.put("msg", "发起支付订单失败: " + e.getMessage());
+                    dingTalkNotifyService.sendAsync("支付订单创建失败",
+                            "## 支付订单异常\n\n" +
+                            "- **状态**: 失败\n" +
+                            "- **订单号**: " + orderNo + "\n" +
+                            "- **设备ID**: " + deviceId + "\n" +
+                            "- **原因**: " + e.getMessage() + "\n");
                     return Mono.just(result);
                 });
     }
