@@ -468,21 +468,6 @@ public class UserController {
         return sb.toString();
     }
 
-    private String buildQueryParamsForUrl(Map<String, String> params) {
-        List<String> keys = new ArrayList<>(params.keySet());
-        Collections.sort(keys);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < keys.size(); i++) {
-            String key = keys.get(i);
-            String value = params.get(key);
-            sb.append(key).append("=").append(value);
-            if (i < keys.size() - 1) {
-                sb.append("&");
-            }
-        }
-        return sb.toString();
-    }
-
     // 验证回调签名
     @GetMapping("/notify")
     public String notify(@RequestParam Map<String, String> map){
