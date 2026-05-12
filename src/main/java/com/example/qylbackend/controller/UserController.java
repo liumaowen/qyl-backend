@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import com.example.qylbackend.dto.ApkInfo;
+import com.example.qylbackend.dto.SiteUrlData;
 import org.springframework.beans.factory.annotation.Value;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -574,19 +575,64 @@ public class UserController {
     }
 
     /**
-     * 获取完整流程的URL（从第一页到第二页）
+     * 获取完整流程的URL（经过3级跳转 + AES解密，返回最终内容地址）
      * @param originalUrl 原始URL
-     * @return 最终的第二页URL
+     * @return 最终的内容网站URL
      */
     @GetMapping("/parse/complete")
     public Mono<String> parseCompleteUrl(@RequestParam String originalUrl) {
+        ConfigEntry con = configEntryRepository.findByKey("originalUrl");
+        if (con != null) {
+            originalUrl = con.getValue();
+        }
         return apiParseService.getFirstUrl(originalUrl)
-                .flatMap(firstUrl -> {
-                    if (firstUrl.equals(originalUrl)) {
-                        // 如果没有重定向，直接尝试解析第二页
-                        return apiParseService.getSecondUrl(firstUrl);
+                .<List<String>>flatMap(firstUrl -> apiParseService.getSecondUrls(firstUrl))
+                .flatMap(thirdUrls -> {
+                    if (thirdUrls.isEmpty() || "无法从第一页面解析第二地址".equals(thirdUrls.get(0))) {
+                        return Mono.just(List.<String>of("解析失败"));
                     }
-                    return apiParseService.getSecondUrl(firstUrl);
+                    return apiParseService.getFinalUrls(thirdUrls.get(0));
+                })
+                .map(finalUrls -> {
+                    if (finalUrls.isEmpty()) {
+                        return "解析失败";
+                    }
+                    return finalUrls.get(0);
+                });
+    }
+
+    /**
+     * 获取3个备选地址
+     */
+    @GetMapping("/parse/second-urls")
+    public Mono<List<String>> parseSecondUrls(@RequestParam String originalUrl) {
+        return apiParseService.getFirstUrl(originalUrl)
+                .flatMap(apiParseService::getSecondUrls);
+    }
+
+    /**
+     * 获取最终内容网站地址（通过第三页AES加密接口）
+     */
+    @GetMapping("/parse/final")
+    public Mono<List<String>> parseFinalUrls(@RequestParam String thirdUrl) {
+        return apiParseService.getFinalUrls(thirdUrl);
+    }
+
+    /**
+     * 完整流程：从入口URL到最终内容网站地址
+     * 返回3个第三页备选地址 + 第一个第三页对应的最终内容地址
+     */
+    @GetMapping("/parse/full-chain")
+    public Mono<SiteUrlData> parseFullChain(@RequestParam String originalUrl) {
+        return apiParseService.getFirstUrl(originalUrl)
+                .flatMap(firstUrl -> apiParseService.getSecondUrls(firstUrl))
+                .flatMap(thirdUrls -> {
+                    if (thirdUrls.isEmpty() || "无法从第一页面解析第二地址".equals(thirdUrls.get(0))) {
+                        return Mono.just(new SiteUrlData(thirdUrls, List.of(), null, null, null));
+                    }
+                    // 取第一个第三页地址去获取最终内容URL
+                    return apiParseService.getFinalUrls(thirdUrls.get(0))
+                            .map(finalUrls -> new SiteUrlData(thirdUrls, finalUrls, null, null, null));
                 });
     }
 }
