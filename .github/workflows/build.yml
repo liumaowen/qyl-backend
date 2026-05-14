@@ -1,0 +1,30 @@
+name: Manual Build Jar
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'maven'
+
+      - name: Maven 打包
+        run: mvn clean package -DskipTests
+
+      - name: 上传 jar 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: qyl-backend-jar
+          path: target/*.jar
+          if-no-files-found: error
+          retention-days: 30
