@@ -10,7 +10,14 @@ import reactor.core.publisher.Mono;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.net.URI;
+import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.List;
 import java.util.ArrayList;
@@ -29,6 +36,26 @@ public class ApiParseService {
     // AES key and IV from the site's cryptedData.js
     private static final String AES_KEY = "gFzviOY0zOxVq1cu";
     private static final String AES_IV = "ZmA0Osl677UdSrl0";
+
+    private static final SSLSocketFactory TRUST_ALL_SOCKET_FACTORY;
+    private static final HostnameVerifier ALLOW_ALL_HOSTS = (hostname, session) -> true;
+
+    static {
+        try {
+            TrustManager[] trustAll = new TrustManager[]{new X509TrustManager() {
+                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                public void checkClientTrusted(X509Certificate[] certs, String authType) { }
+                public void checkServerTrusted(X509Certificate[] certs, String authType) { }
+            }};
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, trustAll, new java.security.SecureRandom());
+            TRUST_ALL_SOCKET_FACTORY = sc.getSocketFactory();
+            HttpsURLConnection.setDefaultSSLSocketFactory(TRUST_ALL_SOCKET_FACTORY);
+            HttpsURLConnection.setDefaultHostnameVerifier(ALLOW_ALL_HOSTS);
+        } catch (Exception e) {
+            throw new RuntimeException("初始化忽略SSL校验失败", e);
+        }
+    }
 
     public ApiParseService() {
     }
@@ -83,6 +110,7 @@ public class ApiParseService {
 
             // 发送 POST 请求（同步，运行在 boundedElastic 线程）
             org.jsoup.Connection.Response response = Jsoup.connect(apiUrl)
+                    .sslSocketFactory(TRUST_ALL_SOCKET_FACTORY)
                     .userAgent(USER_AGENT)
                     .header("Content-Type", "text/plain")
                     .requestBody(encryptedBody)
@@ -145,6 +173,7 @@ public class ApiParseService {
             for (int i = 0; i < MAX_RETRIES; i++) {
                 try {
                     String html = Jsoup.connect(url)
+                            .sslSocketFactory(TRUST_ALL_SOCKET_FACTORY)
                             .userAgent(USER_AGENT)
                             .timeout(30000)
                             .get()
