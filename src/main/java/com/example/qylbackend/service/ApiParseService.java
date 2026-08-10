@@ -398,17 +398,47 @@ public class ApiParseService {
      */
     private String decodeDocumentWrite(String html) {
         try {
-            // 匹配 decodeURIComponent("...") 或 decodeURIComponent('...')
-            Pattern pattern = Pattern.compile("decodeURIComponent\\([\"']([^\"']+)[\"']\\)");
-            Matcher matcher = pattern.matcher(html);
-            if (matcher.find()) {
-                String encodedContent = matcher.group(1);
-                return java.net.URLDecoder.decode(encodedContent, "UTF-8");
+            if (html == null) return null;
+
+            // 先确认页面里是否存在 decodeURIComponent 关键字，便于排查
+            if (!html.contains("decodeURIComponent")) {
+                System.err.println("decodeDocumentWrite: 页面中未包含 decodeURIComponent");
+                return null;
             }
+
+            // 匹配 decodeURIComponent("...") 或 decodeURIComponent('...')，允许跨行
+            Pattern pattern = Pattern.compile(
+                    "decodeURIComponent\\s*\\(\\s*[\"']([^\"']+)[\"']\\s*\\)",
+                    Pattern.DOTALL
+            );
+            Matcher matcher = pattern.matcher(html);
+            if (!matcher.find()) {
+                System.err.println("decodeDocumentWrite: 未匹配到 decodeURIComponent(\"...\") 结构");
+                // 打印出附近片段帮助排查（截断）
+                int idx = html.indexOf("decodeURIComponent");
+                if (idx >= 0) {
+                    int end = Math.min(html.length(), idx + 300);
+                    System.err.println("decodeDocumentWrite: 关键字附近片段 -> "
+                            + html.substring(idx, end).replace("\n", " "));
+                }
+                return null;
+            }
+
+            String encodedContent = matcher.group(1);
+            System.err.println("decodeDocumentWrite: 匹配到编码内容，长度=" + encodedContent.length());
+
+            // 有些站点会做多重编码（如两次 URL 编码），循环解码直到稳定
+            String decoded = encodedContent;
+            for (int i = 0; i < 5; i++) {
+                String next = java.net.URLDecoder.decode(decoded, "UTF-8");
+                if (next.equals(decoded)) break;
+                decoded = next;
+            }
+            return decoded;
         } catch (Exception e) {
-            System.err.println("解码 document.write 内容时出错: " + e.getMessage());
+            System.err.println("decodeDocumentWrite 解码出错: " + e.getMessage());
+            return null;
         }
-        return null;
     }
 
     /**
