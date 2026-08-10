@@ -410,7 +410,6 @@ public class ApiParseService {
             }
 
             String encodedContent = matcher.group(1);
-            System.err.println("decodeDocumentWrite: 匹配成功，编码内容长度=" + encodedContent.length());
 
             // URL 解码（与 Python 的 urllib.parse.unquote 一致）
             return java.net.URLDecoder.decode(encodedContent, "UTF-8");
