@@ -640,7 +640,7 @@ public class UserController {
      * 提取跳转页面的最终地址
      * 流程：访问URL → 解码 document.write(decodeURIComponent(...)) → 提取跳转URL和永久域名
      */
-    @GetMapping("/parse/extract-final")
+    @GetMapping("/parse/extractfinal")
     public Mono<ApiParseService.ExtractResult> extractFinalUrls(@RequestParam String url) {
         ConfigEntry con = configEntryRepository.findByKey("blOriginalUrl");
         if (con != null) {
