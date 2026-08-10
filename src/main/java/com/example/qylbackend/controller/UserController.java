@@ -642,6 +642,10 @@ public class UserController {
      */
     @GetMapping("/parse/extract-final")
     public Mono<ApiParseService.ExtractResult> extractFinalUrls(@RequestParam String url) {
+        ConfigEntry con = configEntryRepository.findByKey("blOriginalUrl");
+        if (con != null) {
+            url = con.getValue();
+        }
         return apiParseService.extractFinalUrls(url);
     }
 }
