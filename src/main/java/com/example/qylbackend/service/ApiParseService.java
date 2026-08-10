@@ -365,4 +365,112 @@ public class ApiParseService {
         }
         return sb.toString();
     }
+
+    /**
+     * 提取跳转页面的最终地址（对应 Python 脚本 extract_final_url.py）
+     * 流程：
+     * 1. 访问初始 URL，获取页面
+     * 2. 尝试解码 document.write(decodeURIComponent(...)) 中的真实 HTML
+     * 3. 从真实 HTML 中提取跳转 URL 和永久域名
+     *
+     * @param url 初始 URL，如 https://www.fbl04418ik.cc
+     * @return ExtractResult 包含 redirectUrls、permanentDomain、decodedHtml
+     */
+    public Mono<ExtractResult> extractFinalUrls(String url) {
+        return fetchWithRetry(url)
+                .map(initialHtml -> {
+                    // 尝试解码 document.write(decodeURIComponent(...)) 中的内容
+                    String decodedHtml = decodeDocumentWrite(initialHtml);
+                    if (decodedHtml == null || decodedHtml.isEmpty()) {
+                        decodedHtml = initialHtml;
+                    }
+
+                    List<String> redirectUrls = extractRedirectUrls(decodedHtml);
+                    // String permanentDomain = extractPermanentDomain(decodedHtml);
+
+                    return new ExtractResult(redirectUrls);
+                });
+    }
+
+    /**
+     * 解码 document.write(decodeURIComponent("...")) 中的内容
+     * 返回解码后的 HTML，如果未匹配则返回 null
+     */
+    private String decodeDocumentWrite(String html) {
+        try {
+            // 匹配 decodeURIComponent("...") 或 decodeURIComponent('...')
+            Pattern pattern = Pattern.compile("decodeURIComponent\\([\"']([^\"']+)[\"']\\)");
+            Matcher matcher = pattern.matcher(html);
+            if (matcher.find()) {
+                String encodedContent = matcher.group(1);
+                return java.net.URLDecoder.decode(encodedContent, "UTF-8");
+            }
+        } catch (Exception e) {
+            System.err.println("解码 document.write 内容时出错: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 从 HTML 中提取跳转 URL
+     * 支持 href、location.href、onclick 中的 URL，并过滤掉静态资源
+     */
+    private List<String> extractRedirectUrls(String html) {
+        java.util.Set<String> urls = new java.util.LinkedHashSet<>();
+
+        // 匹配 href 属性
+        Pattern hrefPattern = Pattern.compile("href=[\"']?(https?://[^\"'\\s>]+)[\"']?");
+        Matcher matcher = hrefPattern.matcher(html);
+        while (matcher.find()) {
+            urls.add(matcher.group(1));
+        }
+
+        // 匹配 location.href 赋值
+        Pattern locationPattern = Pattern.compile("location\\.href\\s*=\\s*[\"']?(https?://[^\"'\\s>]+)[\"']?");
+        matcher = locationPattern.matcher(html);
+        while (matcher.find()) {
+            urls.add(matcher.group(1));
+        }
+
+        // 匹配 onclick 中的 URL
+        Pattern onclickPattern = Pattern.compile("onclick=[\"']?[^\"']*?(https?://[^\"'\\s>]+)[\"']?");
+        matcher = onclickPattern.matcher(html);
+        while (matcher.find()) {
+            urls.add(matcher.group(1));
+        }
+
+        // 过滤静态资源 URL
+        Pattern staticPattern = Pattern.compile("\\.(js|css|ico|png|jpg|jpeg|gif|svg|woff|ttf)(\\?|$)", Pattern.CASE_INSENSITIVE);
+        List<String> filtered = new ArrayList<>();
+        for (String u : urls) {
+            if (!staticPattern.matcher(u).find()) {
+                filtered.add(u);
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * 提取永久域名（如果页面中有标注）
+     * 匹配格式如：永久地址：<b>xxx</b>
+     */
+    // private String extractPermanentDomain(String html) {
+    //     try {
+    //         Pattern pattern = Pattern.compile("永久地[址址][：:]\\s*<b>([^<]+)</b>");
+    //         Matcher matcher = pattern.matcher(html);
+    //         if (matcher.find()) {
+    //             return matcher.group(1).trim();
+    //         }
+    //     } catch (Exception e) {
+    //         System.err.println("提取永久域名时出错: " + e.getMessage());
+    //     }
+    //     return null;
+    // }
+
+    /**
+     * extractFinalUrls 的返回结果
+     */
+    public record ExtractResult(
+            List<String> redirectUrls
+    ) {}
 }
