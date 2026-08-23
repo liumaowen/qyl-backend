@@ -110,13 +110,13 @@ public class UserController {
 
     /**
      * 获取最新的App版本信息
+     * @param platform 平台类型，非必填，默认 "android"
      * @return 最新的版本信息
      */
     @GetMapping("/versions/latest")
-    public Mono<AppVersion> getLatestAppVersion() {
-        // findTopByOrderByCreatedAtDesc 是一个阻塞操作
-        // Mono.justOrEmpty 会在 Optional 为空时返回一个空的 Mono，避免了空指针异常
-        return Mono.justOrEmpty(appVersionRepository.findTopByOrderByCreatedAtDesc());
+    public Mono<AppVersion> getLatestAppVersion(
+            @RequestParam(value = "platform", required = false, defaultValue = "android") String platform) {
+        return Mono.justOrEmpty(appVersionRepository.findTopByPlatformOrderByCreatedAtDesc(platform));
     }
 
     // 代理 apiopen.top

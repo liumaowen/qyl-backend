@@ -18,4 +18,11 @@ public interface AppVersionRepository extends JpaRepository<AppVersion, Long> {
      * @return 一个可能包含最新AppVersion的Optional对象
      */
     Optional<AppVersion> findTopByOrderByCreatedAtDesc();
+
+    /**
+     * 根据平台类型查询最新版本
+     * @param platform 平台类型，如 "android", "ios"
+     * @return 该平台下最新的AppVersion
+     */
+    Optional<AppVersion> findTopByPlatformOrderByCreatedAtDesc(String platform);
 } 

@@ -23,6 +23,7 @@ public class AppVersion {
     private String versionName; // 版本名称, e.g., "1.0.2"
 
     private String updateLog; // 更新日志
+    private String platform; // 设备类型
 
     private String downloadUrl; // APK下载地址
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
