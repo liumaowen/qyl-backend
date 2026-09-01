@@ -44,8 +44,10 @@ import com.example.qylbackend.repository.DeviceInfoRepository;
 import com.example.qylbackend.repository.DeviceRepository;
 import com.example.qylbackend.repository.MyOrderRepository;
 import com.example.qylbackend.repository.SuggestRepository;
+import com.example.qylbackend.repository.UserRepository;
 import com.example.qylbackend.model.ConfigEntry;
 import com.example.qylbackend.model.Device;
+import com.example.qylbackend.model.User;
 import com.example.qylbackend.service.ApiParseService;
 import com.example.qylbackend.service.DingTalkNotifyService;
 import com.example.qylbackend.utils.MD5Utils;
@@ -78,6 +80,8 @@ public class UserController {
     private DeviceRepository deviceRepository; // 注入配置表Repository
     @Autowired
     private SuggestRepository suggestRepository; // 注入配置表Repository
+    @Autowired
+    private UserRepository userRepository; // 注入用户Repository
     @Autowired
     private ApiParseService apiParseService; // 注入API解析服务
     @Autowired
@@ -366,7 +370,7 @@ public class UserController {
     }
     // 创建订单
     @GetMapping("/createorder")
-    public Mono<Map<String, Object>> createOrder(@RequestParam String deviceId, @RequestParam String payType) {
+    public Mono<Map<String, Object>> createOrder(@RequestParam String deviceId, @RequestParam(required = false) Long userId, @RequestParam String payType) {
         Map<String, Object> result = new HashMap<>();
 
         String merchantNum = MERCHANTNUM;// 商户号
@@ -387,6 +391,7 @@ public class UserController {
         // 保存订单
         MyOrder order = new MyOrder();
         order.setDeviceId(deviceId);
+        order.setUserId(userId);
         order.setNo(orderNo);
         order.setState("0");
         order.setFirstUseTime(LocalDateTime.now());
@@ -535,6 +540,17 @@ public class UserController {
         order.setState(state);
         order.setLastUseTime(LocalDateTime.now());
         orderRepository.save(order);
+
+        // 如果订单有关联的 deviceId，同步到 User 表
+        if (order.getDeviceId() != null) {
+            User user = userRepository.findByDeviceId(order.getDeviceId());
+            if (user != null && order.getUserId() == null) {
+                order.setUserId(user.getId());
+                orderRepository.save(order);
+                System.out.println("同步订单 userId: " + order.getNo() + " -> " + user.getId());
+            }
+        }
+
         System.out.println("订单状态更新: " + orderNo);
         return "success";
     }
@@ -647,5 +663,129 @@ public class UserController {
             url = con.getValue();
         }
         return apiParseService.extractFinalUrls(url);
+    }
+
+    // --- 用户账号体系接口 ---
+
+    /**
+     * 注册
+     * 参数: username(字母+数字,4-16位), password, deviceId
+     */
+    @PostMapping("/register")
+    public Map<String, Object> register(@RequestBody Map<String, String> params) {
+        Map<String, Object> result = new HashMap<>();
+        String username = params.getOrDefault("username", "").trim();
+        String password = params.getOrDefault("password", "").trim();
+        String deviceId = params.getOrDefault("deviceId", "").trim();
+
+        // 校验用户名格式：只允许字母+数字，4-16位
+        if (!username.matches("^[a-zA-Z0-9]{4,16}$")) {
+            result.put("success", false);
+            result.put("msg", "用户名只能包含字母和数字，长度4-16位");
+            return result;
+        }
+
+        // 校验密码长度
+        if (password.length() < 6) {
+            result.put("success", false);
+            result.put("msg", "密码长度至少6位");
+            return result;
+        }
+
+        // 检查用户名是否已存在
+        User existingUser = userRepository.findByUsername(username);
+        if (existingUser != null) {
+            result.put("success", false);
+            result.put("msg", "用户名已存在");
+            return result;
+        }
+
+        // 创建用户
+        User newUser = new User();
+        newUser.setUsername(username);
+        newUser.setPassword(MD5Utils.md5(password));
+        newUser.setDeviceId(deviceId);
+        newUser.setCreatedAt(LocalDateTime.now());
+        newUser.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(newUser);
+
+        // 迁移：查询该 deviceId 的历史已付订单，更新 userId，发送钉钉通知
+        List<MyOrder> paidOrders = orderRepository.findByDeviceIdAndState(deviceId, "1");
+        if (!paidOrders.isEmpty()) {
+            // 更新历史订单的 userId
+            for (MyOrder order : paidOrders) {
+                if (order.getUserId() == null) {
+                    order.setUserId(newUser.getId());
+                    orderRepository.save(order);
+                }
+            }
+            dingTalkNotifyService.sendAsync("用户注册-会员迁移",
+                    "## 用户注册成功（有历史付费）\n\n" +
+                    "- **用户名**: " + username + "\n" +
+                    "- **设备ID**: " + deviceId + "\n" +
+                    "- **历史已付订单数**: " + paidOrders.size() + "\n");
+        }
+
+        result.put("success", true);
+        result.put("userId", newUser.getId());
+        result.put("username", newUser.getUsername());
+        result.put("hasPaidOrder", !paidOrders.isEmpty());
+        return result;
+    }
+
+    /**
+     * 登录
+     * 参数: username, password
+     */
+    @PostMapping("/login")
+    public Map<String, Object> login(@RequestBody Map<String, String> params) {
+        Map<String, Object> result = new HashMap<>();
+        String username = params.getOrDefault("username", "").trim();
+        String password = params.getOrDefault("password", "").trim();
+
+        User user = userRepository.findByUsername(username);
+        if (user == null) {
+            result.put("success", false);
+            result.put("msg", "用户不存在");
+            return result;
+        }
+
+        if (!user.getPassword().equals(MD5Utils.md5(password))) {
+            result.put("success", false);
+            result.put("msg", "密码错误");
+            return result;
+        }
+
+        // 更新最后登录时间
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        result.put("success", true);
+        result.put("userId", user.getId());
+        result.put("username", user.getUsername());
+        return result;
+    }
+
+    /**
+     * 查询会员状态 V2（基于 userId）
+     * 先查 User 获取其 deviceId，再查 MyOrder 中该 deviceId 的已付订单
+     */
+    @GetMapping("/getstate/v2")
+    public Map<String, Object> getStateV2(@RequestParam Long userId) {
+        Map<String, Object> result = new HashMap<>();
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            result.put("state", false);
+            return result;
+        }
+        // 通过 userId 查询已付订单（优先），如果 userId 没有订单，再通过 deviceId 查询
+        List<MyOrder> userOrders = orderRepository.findByUserIdAndState(userId, "1");
+        if (!userOrders.isEmpty()) {
+            result.put("state", true);
+        } else {
+            List<MyOrder> deviceOrders = orderRepository.findByDeviceIdAndState(user.getDeviceId(), "1");
+            result.put("state", !deviceOrders.isEmpty());
+        }
+        return result;
     }
 }

@@ -9,27 +9,25 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 订单 (Entity)
- * 
+ * 用户实体
  */
 @Entity
 @Data
-public class MyOrder {
+public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String deviceId;      // 设备唯一标识
+    private String username;     // 用户名（字母+数字，唯一）
 
-    private Long userId;          // 关联用户ID（已登录用户付费时记录）
+    private String password;     // 密码（MD5加密）
 
-    private String no;  // 订单号
-
-    private String state;  // 付款状态：0-未付款 1-付款成功
+    private String deviceId;     // 注册时的设备ID（用于迁移会员状态）
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    private LocalDateTime firstUseTime; // 首次使用时间
+    private LocalDateTime createdAt;      // 创建时间
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
-    private LocalDateTime lastUseTime;  // 最后使用时间
-} 
+    private LocalDateTime lastLoginAt;    // 最后登录时间
+}

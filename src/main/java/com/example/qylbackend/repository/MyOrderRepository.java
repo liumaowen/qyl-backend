@@ -14,4 +14,5 @@ import org.springframework.stereotype.Repository;
 public interface MyOrderRepository extends JpaRepository<MyOrder, Long> {
     List<MyOrder> findByDeviceIdAndState(String deviceId,String state);
     List<MyOrder> findByNoAndState(String no,String state);
+    List<MyOrder> findByUserIdAndState(Long userId, String state);
 } 
