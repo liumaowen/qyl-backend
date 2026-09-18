@@ -303,7 +303,8 @@ public class CaoliuService {
                 nuxtData.aesKey0,
                 nuxtData.imgDomain,
                 nuxtData.videoDomain,
-                nuxtData.baseUrl
+                nuxtData.baseUrl,
+                nuxtData.searchDomain
         );
     }
 
@@ -360,6 +361,7 @@ public class CaoliuService {
         String imgDomain = "";
         String videoDomain = "";
         String baseUrl = "";
+        String searchDomain = "";
 
         static NuxtData fromMap(Map<String, Object> nuxtData) {
             NuxtData data = new NuxtData();
@@ -395,7 +397,7 @@ public class CaoliuService {
             data.imgDomain = categoryUrls.getOrDefault(1, Collections.emptyList()).stream().findFirst().orElse("");
             data.videoDomain = categoryUrls.getOrDefault(2, Collections.emptyList()).stream().findFirst().orElse("");
             data.baseUrl = categoryUrls.getOrDefault(9, Collections.emptyList()).stream().findFirst().orElse("");
-
+            data.searchDomain = categoryUrls.getOrDefault(8, Collections.emptyList()).stream().findFirst().orElse("");
             return data;
         }
     }

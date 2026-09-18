@@ -30,5 +30,6 @@ public record CaoliuConfig(
         // === 从 resourceDomains 中提取的单个域名 ===
         String imgDomain,
         String videoDomain,
-        String baseUrl
+        String baseUrl,
+        String searchDomain
 ) {}
