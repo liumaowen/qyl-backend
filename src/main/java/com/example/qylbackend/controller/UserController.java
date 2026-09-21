@@ -665,6 +665,40 @@ public class UserController {
         return apiParseService.extractFinalUrls(url);
     }
 
+    /**
+     * 设置配置项
+     * @param params 包含 key 和 value 的参数
+     * @return 操作结果 {success: true/false, msg: "提示信息"}
+     */
+    @PostMapping("/setconfig")
+    public Map<String, Object> setConfig(@RequestBody Map<String, String> params) {
+        Map<String, Object> result = new HashMap<>();
+        String key = params.getOrDefault("key", "").trim();
+        String value = params.getOrDefault("value", "").trim();
+
+        if (key.isEmpty()) {
+            result.put("success", false);
+            result.put("msg", "配置项key不能为空");
+            return result;
+        }
+
+        try {
+            boolean updated = apiParseService.setConfigValue(key, value);
+            if (updated) {
+                result.put("success", true);
+                result.put("msg", "配置更新成功");
+            } else {
+                result.put("success", false);
+                result.put("msg", "配置项不存在: " + key);
+            }
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("msg", "更新配置失败: " + e.getMessage());
+        }
+
+        return result;
+    }
+
     // --- 用户账号体系接口 ---
 
     /**

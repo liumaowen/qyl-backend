@@ -1,9 +1,12 @@
 package com.example.qylbackend.service;
 
+import com.example.qylbackend.model.ConfigEntry;
+import com.example.qylbackend.repository.ConfigEntryRepository;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.scheduler.Schedulers;
 import reactor.core.publisher.Mono;
@@ -18,10 +21,7 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.net.URI;
 import java.security.cert.X509Certificate;
-import java.util.Base64;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Random;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,6 +39,9 @@ public class ApiParseService {
 
     private static final SSLSocketFactory TRUST_ALL_SOCKET_FACTORY;
     private static final HostnameVerifier ALLOW_ALL_HOSTS = (hostname, session) -> true;
+
+    @Autowired
+    private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
 
     static {
         try {
@@ -459,21 +462,23 @@ public class ApiParseService {
     }
 
     /**
-     * 提取永久域名（如果页面中有标注）
-     * 匹配格式如：永久地址：<b>xxx</b>
+     * 根据 key 修改 config_entry 值
+     * @param key 配置项key
+     * @param value 配置项新值
+     * @return 是否更新成功
      */
-    // private String extractPermanentDomain(String html) {
-    //     try {
-    //         Pattern pattern = Pattern.compile("永久地[址址][：:]\\s*<b>([^<]+)</b>");
-    //         Matcher matcher = pattern.matcher(html);
-    //         if (matcher.find()) {
-    //             return matcher.group(1).trim();
-    //         }
-    //     } catch (Exception e) {
-    //         System.err.println("提取永久域名时出错: " + e.getMessage());
-    //     }
-    //     return null;
-    // }
+    public boolean setConfigValue(String key, String value) {
+        if (key == null || key.trim().isEmpty()) {
+            return false;
+        }
+        ConfigEntry con = configEntryRepository.findByKey(key);
+        if (con == null) {
+            return false;
+        }
+        con.setValue(value);
+        configEntryRepository.save(con);
+        return true;
+    }
 
     /**
      * extractFinalUrls 的返回结果
