@@ -30,6 +30,7 @@ public class CaoliuController {
     private ConfigEntryRepository configEntryRepository; // 注入配置表Repository
 
     /**
+     * 已废弃，改用 腾讯云scf函数定时更新config_entry
      * 获取完整配置（4步流程）
      * @param url 初始 URL，默认 https://cao4.ai
      * @return 完整配置 JSON
@@ -49,17 +50,18 @@ public class CaoliuController {
         logger.info("获取草榴配置，初始 URL: {}", url);
 
         Map<String, Object> result = new HashMap<>();
-        return caoliuService.getFullConfig(url)
-                .map(config -> {
-                    result.put("success", true);
-                    result.put("data", config);
-                    return result;
-                })
-                .onErrorResume(e -> {
-                    logger.error("获取配置失败: {}", e.getMessage(), e);
-                    result.put("success", false);
-                    result.put("error", e.getMessage());
-                    return Mono.just(result);
-                });
+        return (Mono<Map<String, Object>>) result;
+//        return caoliuService.getFullConfig(url)
+//                .map(config -> {
+//                    result.put("success", true);
+//                    result.put("data", config);
+//                    return result;
+//                })
+//                .onErrorResume(e -> {
+//                    logger.error("获取配置失败: {}", e.getMessage(), e);
+//                    result.put("success", false);
+//                    result.put("error", e.getMessage());
+//                    return Mono.just(result);
+//                });
     }
 }

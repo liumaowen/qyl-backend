@@ -30,4 +30,14 @@ public class User {
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime lastLoginAt;    // 最后登录时间
+
+    // ===== 瞬乐币积分系统 =====
+    private Integer points = 0;  // 瞬乐币余额
+
+    private String inviteCode;   // 邀请码（8位字母数字，唯一）
+
+    private Long invitedBy;      // 邀请人用户ID
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime vipExpireAt;  // VIP到期时间（null=非VIP，付费¥10=now+1年，积分兑换=now+N天）
 }

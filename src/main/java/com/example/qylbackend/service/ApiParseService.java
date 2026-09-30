@@ -63,110 +63,110 @@ public class ApiParseService {
     public ApiParseService() {
     }
 
-    /**
-     * 获取第一页的重定向URL
-     */
-    public Mono<String> getFirstUrl(String originalUrl) {
-        return fetchWithRetry(originalUrl)
-                .map(html -> parseFirstUrlFromHtml(html, originalUrl))
-                .defaultIfEmpty(originalUrl);
-    }
+//    /**
+//     * 获取第一页的重定向URL
+//     */
+//    public Mono<String> getFirstUrl(String originalUrl) {
+//        return fetchWithRetry(originalUrl)
+//                .map(html -> parseFirstUrlFromHtml(html, originalUrl))
+//                .defaultIfEmpty(originalUrl);
+//    }
+//
+//    /**
+//     * 获取第二页的URL（单个，兼容旧接口）
+//     */
+//    public Mono<String> getSecondUrl(String firstUrl) {
+//        return fetchWithRetry(firstUrl)
+//                .map(this::parseSecondUrlFromHtml)
+//                .defaultIfEmpty("无法从第一页面解析第二地址");
+//    }
+//
+//    /**
+//     * 获取第二页的URL列表（3个备选）
+//     */
+//    public Mono<List<String>> getSecondUrls(String firstUrl) {
+//        return fetchWithRetry(firstUrl)
+//                .map(this::parseSecondUrlsFromHtml)
+//                .defaultIfEmpty(List.of("无法从第一页面解析第二地址"));
+//    }
+//
+//    /**
+//     * 通过第三页获取最终内容网站地址
+//     */
+//    public Mono<List<String>> getFinalUrls(String thirdUrl) {
+//        return Mono.fromCallable(() -> {
+//            URI uri = URI.create(thirdUrl);
+//            String protocol = uri.getScheme();
+//            String host = uri.getHost();
+//            int port = uri.getPort();
+//
+//            // 提取主域名（后两段）
+//            String mainDomain = extractMainDomain(host);
+//
+//            // AES加密请求体
+//            String jsonPayload = "{\"Domain\":\"" + mainDomain + "\"}";
+//            String encryptedBody = aesEncrypt(jsonPayload);
+//
+//            // 构建 API URL
+//            String portSuffix = (port != -1) ? ":" + port : "";
+//            String apiUrl = protocol + "://" + host + portSuffix + "/Web/GetJumpURL2";
+//
+//            // 发送 POST 请求（同步，运行在 boundedElastic 线程）
+//            org.jsoup.Connection.Response response = Jsoup.connect(apiUrl)
+//                    .sslSocketFactory(TRUST_ALL_SOCKET_FACTORY)
+//                    .userAgent(USER_AGENT)
+//                    .header("Content-Type", "text/plain")
+//                    .requestBody(encryptedBody)
+//                    .method(org.jsoup.Connection.Method.POST)
+//                    .timeout(30000)
+//                    .ignoreContentType(true)
+//                    .execute();
+//
+//            String responseBody = response.body();
+//            if (responseBody == null || responseBody.isEmpty()) {
+//                return new ArrayList<String>();
+//            }
+//
+//            // AES解密响应
+//            String decrypted = aesDecrypt(responseBody);
+//            return parseFinalUrls(decrypted);
+//        }).subscribeOn(Schedulers.boundedElastic());
+//    }
 
-    /**
-     * 获取第二页的URL（单个，兼容旧接口）
-     */
-    public Mono<String> getSecondUrl(String firstUrl) {
-        return fetchWithRetry(firstUrl)
-                .map(this::parseSecondUrlFromHtml)
-                .defaultIfEmpty("无法从第一页面解析第二地址");
-    }
-
-    /**
-     * 获取第二页的URL列表（3个备选）
-     */
-    public Mono<List<String>> getSecondUrls(String firstUrl) {
-        return fetchWithRetry(firstUrl)
-                .map(this::parseSecondUrlsFromHtml)
-                .defaultIfEmpty(List.of("无法从第一页面解析第二地址"));
-    }
-
-    /**
-     * 通过第三页获取最终内容网站地址
-     */
-    public Mono<List<String>> getFinalUrls(String thirdUrl) {
-        return Mono.fromCallable(() -> {
-            URI uri = URI.create(thirdUrl);
-            String protocol = uri.getScheme();
-            String host = uri.getHost();
-            int port = uri.getPort();
-
-            // 提取主域名（后两段）
-            String mainDomain = extractMainDomain(host);
-
-            // AES加密请求体
-            String jsonPayload = "{\"Domain\":\"" + mainDomain + "\"}";
-            String encryptedBody = aesEncrypt(jsonPayload);
-
-            // 构建 API URL
-            String portSuffix = (port != -1) ? ":" + port : "";
-            String apiUrl = protocol + "://" + host + portSuffix + "/Web/GetJumpURL2";
-
-            // 发送 POST 请求（同步，运行在 boundedElastic 线程）
-            org.jsoup.Connection.Response response = Jsoup.connect(apiUrl)
-                    .sslSocketFactory(TRUST_ALL_SOCKET_FACTORY)
-                    .userAgent(USER_AGENT)
-                    .header("Content-Type", "text/plain")
-                    .requestBody(encryptedBody)
-                    .method(org.jsoup.Connection.Method.POST)
-                    .timeout(30000)
-                    .ignoreContentType(true)
-                    .execute();
-
-            String responseBody = response.body();
-            if (responseBody == null || responseBody.isEmpty()) {
-                return new ArrayList<String>();
-            }
-
-            // AES解密响应
-            String decrypted = aesDecrypt(responseBody);
-            return parseFinalUrls(decrypted);
-        }).subscribeOn(Schedulers.boundedElastic());
-    }
-
-    /**
-     * 提取主域名（取 hostname 最后两段）
-     */
-    private String extractMainDomain(String hostname) {
-        String[] parts = hostname.split("\\.");
-        if (parts.length >= 2) {
-            return parts[parts.length - 2] + "." + parts[parts.length - 1];
-        }
-        return hostname;
-    }
-
-    /**
-     * 解析最终URL列表
-     */
-    private List<String> parseFinalUrls(String json) {
-        List<String> urls = new ArrayList<>();
-        try {
-            // 简单解析 jumpDomains 字段
-            Pattern pattern = Pattern.compile("\"jumpDomains\"\\s*:\\s*\"([^\"]+)\"");
-            Matcher matcher = pattern.matcher(json);
-            if (matcher.find()) {
-                String jumpDomains = matcher.group(1);
-                String[] domains = jumpDomains.split(",");
-                for (String domain : domains) {
-                    if (!domain.isEmpty()) {
-                        urls.add(domain.trim());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("解析最终URL时出错: " + e.getMessage());
-        }
-        return urls;
-    }
+//    /**
+//     * 提取主域名（取 hostname 最后两段）
+//     */
+//    private String extractMainDomain(String hostname) {
+//        String[] parts = hostname.split("\\.");
+//        if (parts.length >= 2) {
+//            return parts[parts.length - 2] + "." + parts[parts.length - 1];
+//        }
+//        return hostname;
+//    }
+//
+//    /**
+//     * 解析最终URL列表
+//     */
+//    private List<String> parseFinalUrls(String json) {
+//        List<String> urls = new ArrayList<>();
+//        try {
+//            // 简单解析 jumpDomains 字段
+//            Pattern pattern = Pattern.compile("\"jumpDomains\"\\s*:\\s*\"([^\"]+)\"");
+//            Matcher matcher = pattern.matcher(json);
+//            if (matcher.find()) {
+//                String jumpDomains = matcher.group(1);
+//                String[] domains = jumpDomains.split(",");
+//                for (String domain : domains) {
+//                    if (!domain.isEmpty()) {
+//                        urls.add(domain.trim());
+//                    }
+//                }
+//            }
+//        } catch (Exception e) {
+//            System.err.println("解析最终URL时出错: " + e.getMessage());
+//        }
+//        return urls;
+//    }
 
     /**
      * 带重试机制的HTTP请求
@@ -388,7 +388,8 @@ public class ApiParseService {
                         decodedHtml = initialHtml;
                     }
 
-                    List<String> redirectUrls = extractRedirectUrls(decodedHtml);
+//                    List<String> redirectUrls = extractRedirectUrls(decodedHtml);
+                    List<String> redirectUrls = new ArrayList<>();
                     // String permanentDomain = extractPermanentDomain(decodedHtml);
 
                     return new ExtractResult(redirectUrls);
@@ -422,44 +423,44 @@ public class ApiParseService {
         }
     }
 
-    /**
-     * 从 HTML 中提取跳转 URL
-     * 支持 href、location.href、onclick 中的 URL，并过滤掉静态资源
-     */
-    private List<String> extractRedirectUrls(String html) {
-        java.util.Set<String> urls = new java.util.LinkedHashSet<>();
-
-        // 匹配 href 属性
-        Pattern hrefPattern = Pattern.compile("href=[\"']?(https?://[^\"'\\s>]+)[\"']?");
-        Matcher matcher = hrefPattern.matcher(html);
-        while (matcher.find()) {
-            urls.add(matcher.group(1));
-        }
-
-        // 匹配 location.href 赋值
-        Pattern locationPattern = Pattern.compile("location\\.href\\s*=\\s*[\"']?(https?://[^\"'\\s>]+)[\"']?");
-        matcher = locationPattern.matcher(html);
-        while (matcher.find()) {
-            urls.add(matcher.group(1));
-        }
-
-        // 匹配 onclick 中的 URL
-        Pattern onclickPattern = Pattern.compile("onclick=[\"']?[^\"']*?(https?://[^\"'\\s>]+)[\"']?");
-        matcher = onclickPattern.matcher(html);
-        while (matcher.find()) {
-            urls.add(matcher.group(1));
-        }
-
-        // 过滤静态资源 URL
-        Pattern staticPattern = Pattern.compile("\\.(js|css|ico|png|jpg|jpeg|gif|svg|woff|ttf)(\\?|$)", Pattern.CASE_INSENSITIVE);
-        List<String> filtered = new ArrayList<>();
-        for (String u : urls) {
-            if (!staticPattern.matcher(u).find()) {
-                filtered.add(u);
-            }
-        }
-        return filtered;
-    }
+//    /**
+//     * 从 HTML 中提取跳转 URL
+//     * 支持 href、location.href、onclick 中的 URL，并过滤掉静态资源
+//     */
+//    private List<String> extractRedirectUrls(String html) {
+//        java.util.Set<String> urls = new java.util.LinkedHashSet<>();
+//
+//        // 匹配 href 属性
+//        Pattern hrefPattern = Pattern.compile("href=[\"']?(https?://[^\"'\\s>]+)[\"']?");
+//        Matcher matcher = hrefPattern.matcher(html);
+//        while (matcher.find()) {
+//            urls.add(matcher.group(1));
+//        }
+//
+//        // 匹配 location.href 赋值
+//        Pattern locationPattern = Pattern.compile("location\\.href\\s*=\\s*[\"']?(https?://[^\"'\\s>]+)[\"']?");
+//        matcher = locationPattern.matcher(html);
+//        while (matcher.find()) {
+//            urls.add(matcher.group(1));
+//        }
+//
+//        // 匹配 onclick 中的 URL
+//        Pattern onclickPattern = Pattern.compile("onclick=[\"']?[^\"']*?(https?://[^\"'\\s>]+)[\"']?");
+//        matcher = onclickPattern.matcher(html);
+//        while (matcher.find()) {
+//            urls.add(matcher.group(1));
+//        }
+//
+//        // 过滤静态资源 URL
+//        Pattern staticPattern = Pattern.compile("\\.(js|css|ico|png|jpg|jpeg|gif|svg|woff|ttf)(\\?|$)", Pattern.CASE_INSENSITIVE);
+//        List<String> filtered = new ArrayList<>();
+//        for (String u : urls) {
+//            if (!staticPattern.matcher(u).find()) {
+//                filtered.add(u);
+//            }
+//        }
+//        return filtered;
+//    }
 
     /**
      * 根据 key 修改 config_entry 值

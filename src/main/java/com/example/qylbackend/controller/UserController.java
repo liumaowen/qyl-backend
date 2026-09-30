@@ -50,6 +50,9 @@ import com.example.qylbackend.model.Device;
 import com.example.qylbackend.model.User;
 import com.example.qylbackend.service.ApiParseService;
 import com.example.qylbackend.service.DingTalkNotifyService;
+import com.example.qylbackend.service.PointsService;
+import com.example.qylbackend.service.SignInService;
+import com.example.qylbackend.service.InviteService;
 import com.example.qylbackend.utils.MD5Utils;
 
 @RestController
@@ -86,6 +89,12 @@ public class UserController {
     private ApiParseService apiParseService; // 注入API解析服务
     @Autowired
     private DingTalkNotifyService dingTalkNotifyService; // 注入钉钉通知服务
+    @Autowired
+    private PointsService pointsService; // 注入积分服务
+    @Autowired
+    private SignInService signInService; // 注入签到服务
+    @Autowired
+    private InviteService inviteService; // 注入邀请服务
 
     // 注入WebClient
     public UserController(WebClient webClient) {
@@ -169,78 +178,78 @@ public class UserController {
                     return Mono.just(false);
                 });
     }
-    // 代理 mmp.cc 视频1
-    @GetMapping("/ksvideo")
-    public Mono<String> getKsVideo() {
-        String[] ids = {"jk", "YuMeng", "NvDa", "NvGao", "ReWu", "QingCun", "SheJie", "ChuanDa", "GaoZhiLiangXiaoJieJie", "HanFu", "HeiSi", "BianZhuang", "LuoLi", "TianMei", "BaiSi"};
-        ObjectMapper objectMapper = new ObjectMapper(); 
-        return Flux.fromArray(ids)
-                .flatMap(id -> mmpClient.get()
-                        .uri(uriBuilder -> uriBuilder.path("/api/ksvideo")
-                                .queryParam("type", "json")
-                                .queryParam("id", id)
-                                .build())
-                        .retrieve()
-                        .onStatus(
-                                status -> status.isError(), // 当状态码为4xx/5xx时触发
-                                clientResponse -> Mono.error(new RuntimeException("第三方接口异常: " + clientResponse.statusCode()))
-                        )
-                        .bodyToMono(String.class)
-                        .onErrorResume(e -> {
-                            System.err.println("API call for id " + id + " failed: " + e.getMessage());
-                            return Mono.empty();
-                        }))
-                .collectList()
-                .flatMap(results -> {
-                    // 解析所有JSON响应并提取视频信息
-                    List<Map<String, Object>> allVideos = new ArrayList<>();
-                    
-                    for (String result : results) {
-                            try {
-                                // 如果解析数组失败，尝试解析单个对象
-                                Map<String, Object> video = objectMapper.readValue(result, new TypeReference<Map<String, Object>>() {});
-                                allVideos.add(video);
-                            } catch (Exception ex) {
-                                System.err.println("Failed to parse JSON: " + result + ", error: " + ex.getMessage());
-                            }
-                    }
-                    
-                    // 提取所有视频URL
-                    List<String> videoUrls = allVideos.stream()
-                            .map(v -> (String) v.get("link"))
-                            .filter(url -> url != null && !url.trim().isEmpty())
-                            .collect(Collectors.toList());
-                    
-                    if (videoUrls.isEmpty()) {
-                        return Mono.just("[]");
-                    }
-                    
-                    // 并发检查链接有效性，模拟浏览器访问
-                    return Flux.fromIterable(videoUrls)
-                            .flatMap(url -> isValidLink(url)
-                                    .map(isValid -> new AbstractMap.SimpleEntry<>(url, isValid)), 5) // 并发度设为5
-                            .collectList()
-                            .map(urlValidityMap -> {
-                                // 获取有效的URL集合
-                                Set<String> validUrls = urlValidityMap.stream()
-                                        .filter(entry -> entry.getValue())
-                                        .map(Map.Entry::getKey)
-                                        .collect(Collectors.toSet());
-                                
-                                // 过滤出有效的视频信息
-                                List<Map<String, Object>> validVideos = allVideos.stream()
-                                        .filter(v -> v.get("link") != null && validUrls.contains(v.get("link")))
-                                        .collect(Collectors.toList());
-                                
-                                try {
-                                    return objectMapper.writeValueAsString(validVideos);
-                                } catch (Exception e) {
-                                    System.err.println("Failed to serialize valid videos: " + e.getMessage());
-                                    return "[]";
-                                }
-                            });
-                });
-    }
+//    // 代理 mmp.cc 视频1
+//    @GetMapping("/ksvideo")
+//    public Mono<String> getKsVideo() {
+//        String[] ids = {"jk", "YuMeng", "NvDa", "NvGao", "ReWu", "QingCun", "SheJie", "ChuanDa", "GaoZhiLiangXiaoJieJie", "HanFu", "HeiSi", "BianZhuang", "LuoLi", "TianMei", "BaiSi"};
+//        ObjectMapper objectMapper = new ObjectMapper();
+//        return Flux.fromArray(ids)
+//                .flatMap(id -> mmpClient.get()
+//                        .uri(uriBuilder -> uriBuilder.path("/api/ksvideo")
+//                                .queryParam("type", "json")
+//                                .queryParam("id", id)
+//                                .build())
+//                        .retrieve()
+//                        .onStatus(
+//                                status -> status.isError(), // 当状态码为4xx/5xx时触发
+//                                clientResponse -> Mono.error(new RuntimeException("第三方接口异常: " + clientResponse.statusCode()))
+//                        )
+//                        .bodyToMono(String.class)
+//                        .onErrorResume(e -> {
+//                            System.err.println("API call for id " + id + " failed: " + e.getMessage());
+//                            return Mono.empty();
+//                        }))
+//                .collectList()
+//                .flatMap(results -> {
+//                    // 解析所有JSON响应并提取视频信息
+//                    List<Map<String, Object>> allVideos = new ArrayList<>();
+//
+//                    for (String result : results) {
+//                            try {
+//                                // 如果解析数组失败，尝试解析单个对象
+//                                Map<String, Object> video = objectMapper.readValue(result, new TypeReference<Map<String, Object>>() {});
+//                                allVideos.add(video);
+//                            } catch (Exception ex) {
+//                                System.err.println("Failed to parse JSON: " + result + ", error: " + ex.getMessage());
+//                            }
+//                    }
+//
+//                    // 提取所有视频URL
+//                    List<String> videoUrls = allVideos.stream()
+//                            .map(v -> (String) v.get("link"))
+//                            .filter(url -> url != null && !url.trim().isEmpty())
+//                            .collect(Collectors.toList());
+//
+//                    if (videoUrls.isEmpty()) {
+//                        return Mono.just("[]");
+//                    }
+//
+//                    // 并发检查链接有效性，模拟浏览器访问
+//                    return Flux.fromIterable(videoUrls)
+//                            .flatMap(url -> isValidLink(url)
+//                                    .map(isValid -> new AbstractMap.SimpleEntry<>(url, isValid)), 5) // 并发度设为5
+//                            .collectList()
+//                            .map(urlValidityMap -> {
+//                                // 获取有效的URL集合
+//                                Set<String> validUrls = urlValidityMap.stream()
+//                                        .filter(entry -> entry.getValue())
+//                                        .map(Map.Entry::getKey)
+//                                        .collect(Collectors.toSet());
+//
+//                                // 过滤出有效的视频信息
+//                                List<Map<String, Object>> validVideos = allVideos.stream()
+//                                        .filter(v -> v.get("link") != null && validUrls.contains(v.get("link")))
+//                                        .collect(Collectors.toList());
+//
+//                                try {
+//                                    return objectMapper.writeValueAsString(validVideos);
+//                                } catch (Exception e) {
+//                                    System.err.println("Failed to serialize valid videos: " + e.getMessage());
+//                                    return "[]";
+//                                }
+//                            });
+//                });
+//    }
 
     // 代理 mmp.cc 视频2
     @GetMapping("/miss")
@@ -551,14 +560,45 @@ public class UserController {
             }
         }
 
+        // 支付成功后，设置 VIP 到期时间为 1 年后（累加）
+        User vipUser = null;
+        if (order.getUserId() != null) {
+            vipUser = userRepository.findById(order.getUserId()).orElse(null);
+        } else if (order.getDeviceId() != null) {
+            vipUser = userRepository.findByDeviceId(order.getDeviceId());
+        }
+        if (vipUser != null) {
+            LocalDateTime now = LocalDateTime.now();
+            if (vipUser.getVipExpireAt() != null && vipUser.getVipExpireAt().isAfter(now)) {
+                // 已有 VIP 且未过期，在现有基础上累加 1 年
+                vipUser.setVipExpireAt(vipUser.getVipExpireAt().plusYears(1));
+            } else {
+                // 没有 VIP 或已过期，从当前时间开始 1 年
+                vipUser.setVipExpireAt(now.plusYears(1));
+            }
+            userRepository.save(vipUser);
+            System.out.println("VIP 到期时间更新: userId=" + vipUser.getId() + ", expireAt=" + vipUser.getVipExpireAt());
+        }
+
         System.out.println("订单状态更新: " + orderNo);
         return "success";
     }
 
-    // 查询订单是否付款成功
+    // 查询订单是否付款成功（基于设备ID）
     @GetMapping("/getstate")
     public Map<String, Object> getState(@RequestParam String deviceId ) {
         Map<String, Object> result = new HashMap<>();
+        // 先通过 deviceId 查找关联用户，使用新的 VIP 判断逻辑
+        User user = userRepository.findByDeviceId(deviceId);
+        if (user != null) {
+            boolean isVip = isVip(user);
+            result.put("state", isVip);
+            if (user.getVipExpireAt() != null) {
+                result.put("expireAt", user.getVipExpireAt().toString());
+            }
+            return result;
+        }
+        // 兜底：通过订单判断（兼容老数据）
         List<MyOrder> orders = orderRepository.findByDeviceIdAndState(deviceId, "1");
         if (orders.isEmpty()) {
             result.put("state", false);
@@ -570,89 +610,90 @@ public class UserController {
 
     // --- API解析接口 ---
 
-    /**
-     * 获取第一页的重定向URL
-     * @param url 原始URL
-     * @return 重定向后的URL
-     */
-    @GetMapping("/parse/first-url")
-    public Mono<String> parseFirstUrl(@RequestParam String url) {
-        return apiParseService.getFirstUrl(url);
-    }
+//    /**
+//     * 获取第一页的重定向URL
+//     * @param url 原始URL
+//     * @return 重定向后的URL
+//     */
+//    @GetMapping("/parse/first-url")
+//    public Mono<String> parseFirstUrl(@RequestParam String url) {
+//        return apiParseService.getFirstUrl(url);
+//    }
+//
+//    /**
+//     * 获取第二页的URL
+//     * @param url 第一页URL
+//     * @return 第二页URL
+//     */
+//    @GetMapping("/parse/second-url")
+//    public Mono<String> parseSecondUrl(@RequestParam String url) {
+//        return apiParseService.getSecondUrl(url);
+//    }
+
+//    /**
+//     * 获取完整流程的URL（经过3级跳转 + AES解密，返回最终内容地址）
+//     * @param originalUrl 原始URL
+//     * @return 最终的内容网站URL
+//     */
+//    @GetMapping("/parse/complete")
+//    public Mono<String> parseCompleteUrl(@RequestParam String originalUrl) {
+//        ConfigEntry con = configEntryRepository.findByKey("originalUrl");
+//        if (con != null) {
+//            originalUrl = con.getValue();
+//        }
+//        return apiParseService.getFirstUrl(originalUrl)
+//                .<List<String>>flatMap(firstUrl -> apiParseService.getSecondUrls(firstUrl))
+//                .flatMap(thirdUrls -> {
+//                    if (thirdUrls.isEmpty() || "无法从第一页面解析第二地址".equals(thirdUrls.get(0))) {
+//                        return Mono.just(List.<String>of("解析失败"));
+//                    }
+//                    return apiParseService.getFinalUrls(thirdUrls.get(0));
+//                })
+//                .map(finalUrls -> {
+//                    if (finalUrls.isEmpty()) {
+//                        return "解析失败";
+//                    }
+//                    return finalUrls.get(0);
+//                });
+//    }
+
+//    /**
+//     * 获取3个备选地址
+//     */
+//    @GetMapping("/parse/second-urls")
+//    public Mono<List<String>> parseSecondUrls(@RequestParam String originalUrl) {
+//        return apiParseService.getFirstUrl(originalUrl)
+//                .flatMap(apiParseService::getSecondUrls);
+//    }
+
+//    /**
+//     * 获取最终内容网站地址（通过第三页AES加密接口）
+//     */
+//    @GetMapping("/parse/final")
+//    public Mono<List<String>> parseFinalUrls(@RequestParam String thirdUrl) {
+//        return apiParseService.getFinalUrls(thirdUrl);
+//    }
+
+//    /**
+//     * 完整流程：从入口URL到最终内容网站地址
+//     * 返回3个第三页备选地址 + 第一个第三页对应的最终内容地址
+//     */
+//    @GetMapping("/parse/full-chain")
+//    public Mono<SiteUrlData> parseFullChain(@RequestParam String originalUrl) {
+//        return apiParseService.getFirstUrl(originalUrl)
+//                .flatMap(firstUrl -> apiParseService.getSecondUrls(firstUrl))
+//                .flatMap(thirdUrls -> {
+//                    if (thirdUrls.isEmpty() || "无法从第一页面解析第二地址".equals(thirdUrls.get(0))) {
+//                        return Mono.just(new SiteUrlData(thirdUrls, List.of(), null, null, null));
+//                    }
+//                    // 取第一个第三页地址去获取最终内容URL
+//                    return apiParseService.getFinalUrls(thirdUrls.get(0))
+//                            .map(finalUrls -> new SiteUrlData(thirdUrls, finalUrls, null, null, null));
+//                });
+//    }
 
     /**
-     * 获取第二页的URL
-     * @param url 第一页URL
-     * @return 第二页URL
-     */
-    @GetMapping("/parse/second-url")
-    public Mono<String> parseSecondUrl(@RequestParam String url) {
-        return apiParseService.getSecondUrl(url);
-    }
-
-    /**
-     * 获取完整流程的URL（经过3级跳转 + AES解密，返回最终内容地址）
-     * @param originalUrl 原始URL
-     * @return 最终的内容网站URL
-     */
-    @GetMapping("/parse/complete")
-    public Mono<String> parseCompleteUrl(@RequestParam String originalUrl) {
-        ConfigEntry con = configEntryRepository.findByKey("originalUrl");
-        if (con != null) {
-            originalUrl = con.getValue();
-        }
-        return apiParseService.getFirstUrl(originalUrl)
-                .<List<String>>flatMap(firstUrl -> apiParseService.getSecondUrls(firstUrl))
-                .flatMap(thirdUrls -> {
-                    if (thirdUrls.isEmpty() || "无法从第一页面解析第二地址".equals(thirdUrls.get(0))) {
-                        return Mono.just(List.<String>of("解析失败"));
-                    }
-                    return apiParseService.getFinalUrls(thirdUrls.get(0));
-                })
-                .map(finalUrls -> {
-                    if (finalUrls.isEmpty()) {
-                        return "解析失败";
-                    }
-                    return finalUrls.get(0);
-                });
-    }
-
-    /**
-     * 获取3个备选地址
-     */
-    @GetMapping("/parse/second-urls")
-    public Mono<List<String>> parseSecondUrls(@RequestParam String originalUrl) {
-        return apiParseService.getFirstUrl(originalUrl)
-                .flatMap(apiParseService::getSecondUrls);
-    }
-
-    /**
-     * 获取最终内容网站地址（通过第三页AES加密接口）
-     */
-    @GetMapping("/parse/final")
-    public Mono<List<String>> parseFinalUrls(@RequestParam String thirdUrl) {
-        return apiParseService.getFinalUrls(thirdUrl);
-    }
-
-    /**
-     * 完整流程：从入口URL到最终内容网站地址
-     * 返回3个第三页备选地址 + 第一个第三页对应的最终内容地址
-     */
-    @GetMapping("/parse/full-chain")
-    public Mono<SiteUrlData> parseFullChain(@RequestParam String originalUrl) {
-        return apiParseService.getFirstUrl(originalUrl)
-                .flatMap(firstUrl -> apiParseService.getSecondUrls(firstUrl))
-                .flatMap(thirdUrls -> {
-                    if (thirdUrls.isEmpty() || "无法从第一页面解析第二地址".equals(thirdUrls.get(0))) {
-                        return Mono.just(new SiteUrlData(thirdUrls, List.of(), null, null, null));
-                    }
-                    // 取第一个第三页地址去获取最终内容URL
-                    return apiParseService.getFinalUrls(thirdUrls.get(0))
-                            .map(finalUrls -> new SiteUrlData(thirdUrls, finalUrls, null, null, null));
-                });
-    }
-
-    /**
+     * 已废弃，改用 腾讯云scf函数定时更新config_entry
      * 提取跳转页面的最终地址
      * 流程：访问URL → 解码 document.write(decodeURIComponent(...)) → 提取跳转URL和永久域名
      */
@@ -734,14 +775,29 @@ public class UserController {
             return result;
         }
 
+        // 获取邀请码（可选）
+        String inviteCode = params.getOrDefault("inviteCode", "").trim();
+
         // 创建用户
         User newUser = new User();
         newUser.setUsername(username);
         newUser.setPassword(MD5Utils.md5(password));
         newUser.setDeviceId(deviceId);
+        newUser.setPoints(0);
         newUser.setCreatedAt(LocalDateTime.now());
         newUser.setLastLoginAt(LocalDateTime.now());
         userRepository.save(newUser);
+
+        // 处理邀请码
+        if (!inviteCode.isEmpty()) {
+            Map<String, Object> inviteResult = inviteService.useInviteCode(newUser.getId(), inviteCode, deviceId);
+            // 把邀请码处理结果返回给前端
+            if (Boolean.FALSE.equals(inviteResult.get("success"))) {
+                result.put("inviteMsg", inviteResult.get("msg"));
+            } else {
+                result.put("inviteMsg", "邀请码使用成功，获得50瞬乐币");
+            }
+        }
 
         // 迁移：查询该 deviceId 的历史已付订单，更新 userId，发送钉钉通知
         List<MyOrder> paidOrders = orderRepository.findByDeviceIdAndState(deviceId, "1");
@@ -802,7 +858,7 @@ public class UserController {
 
     /**
      * 查询会员状态 V2（基于 userId）
-     * 先查 User 获取其 deviceId，再查 MyOrder 中该 deviceId 的已付订单
+     * 使用新的 VIP 到期时间判断逻辑
      */
     @GetMapping("/getstate/v2")
     public Map<String, Object> getStateV2(@RequestParam Long userId) {
@@ -812,14 +868,143 @@ public class UserController {
             result.put("state", false);
             return result;
         }
-        // 通过 userId 查询已付订单（优先），如果 userId 没有订单，再通过 deviceId 查询
-        List<MyOrder> userOrders = orderRepository.findByUserIdAndState(userId, "1");
-        if (!userOrders.isEmpty()) {
-            result.put("state", true);
-        } else {
-            List<MyOrder> deviceOrders = orderRepository.findByDeviceIdAndState(user.getDeviceId(), "1");
-            result.put("state", !deviceOrders.isEmpty());
+        // 使用新的 VIP 判断逻辑
+        boolean isVip = isVip(user);
+        result.put("state", isVip);
+        if (user.getVipExpireAt() != null) {
+            result.put("expireAt", user.getVipExpireAt().toString());
         }
         return result;
+    }
+
+    /**
+     * 查询会员状态 V3（基于 deviceId）
+     * 使用新的 VIP 到期时间判断逻辑
+     */
+    @GetMapping("/getstate/v3")
+    public Map<String, Object> getStateV3(@RequestParam String deviceId) {
+        Map<String, Object> result = new HashMap<>();
+        User user = userRepository.findByDeviceId(deviceId);
+        if (user == null) {
+            result.put("state", false);
+            return result;
+        }
+        // 使用新的 VIP 判断逻辑
+        boolean isVip = isVip(user);
+        result.put("state", isVip);
+        if (user.getVipExpireAt() != null) {
+            result.put("expireAt", user.getVipExpireAt().toString());
+        }
+        return result;
+    }
+
+    /**
+     * 判断用户是否为 VIP
+     * @param user 用户对象
+     * @return true-是VIP，false-不是VIP
+     */
+    private boolean isVip(User user) {
+        if (user.getVipExpireAt() == null) {
+            return false;
+        }
+        return user.getVipExpireAt().isAfter(LocalDateTime.now());
+    }
+
+    // ==================== 积分相关接口 ====================
+
+    /**
+     * 查询积分余额
+     */
+    @GetMapping("/points/balance")
+    public Mono<Map<String, Object>> getPointsBalance(@RequestParam Long userId) {
+        return Mono.fromCallable(() -> pointsService.getBalance(userId));
+    }
+
+    /**
+     * 查询积分流水
+     */
+    @GetMapping("/points/records")
+    public Mono<Map<String, Object>> getPointsRecords(
+        @RequestParam Long userId,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size) {
+        return Mono.fromCallable(() -> pointsService.getRecords(userId, page, size));
+    }
+
+    /**
+     * 兑换 VIP
+     */
+    @PostMapping("/exchange/vip")
+    public Mono<Map<String, Object>> exchangeVip(
+        @RequestParam Long userId,
+        @RequestParam Integer days) {
+        return Mono.fromCallable(() -> pointsService.exchangeVip(userId, days));
+    }
+
+    // ==================== 签到相关接口 ====================
+
+    /**
+     * 每日签到
+     */
+    @PostMapping("/signin")
+    public Mono<Map<String, Object>> signIn(@RequestParam Long userId) {
+        return Mono.fromCallable(() -> signInService.signIn(userId));
+    }
+
+    /**
+     * 查询签到信息
+     */
+    @GetMapping("/signin/info")
+    public Mono<Map<String, Object>> getSignInInfo(@RequestParam Long userId) {
+        return Mono.fromCallable(() -> signInService.getSignInInfo(userId));
+    }
+
+    // ==================== 邀请相关接口 ====================
+
+    /**
+     * 获取邀请码
+     */
+    @GetMapping("/invite/code")
+    public Mono<Map<String, Object>> getInviteCode(@RequestParam Long userId) {
+        return Mono.fromCallable(() -> {
+            String code = inviteService.generateInviteCode(userId);
+            Map<String, Object> result = new HashMap<>();
+            if (code != null) {
+                result.put("success", true);
+                result.put("inviteCode", code);
+            } else {
+                result.put("success", false);
+                result.put("msg", "用户不存在");
+            }
+            return result;
+        });
+    }
+
+    /**
+     * 使用邀请码（已登录用户手动输入）
+     */
+    @PostMapping("/invite/use")
+    public Mono<Map<String, Object>> useInviteCode(
+        @RequestParam Long userId,
+        @RequestParam String inviteCode) {
+        return Mono.fromCallable(() -> {
+            // 查询用户信息获取 deviceId
+            User user = userRepository.findById(userId).orElse(null);
+            if (user == null) {
+                return Map.of("success", false, "msg", "用户不存在");
+            }
+            return inviteService.useInviteCode(userId, inviteCode, user.getDeviceId());
+        });
+    }
+
+    /**
+     * 查询邀请记录
+     */
+    @GetMapping("/invite/records")
+    public Mono<Map<String, Object>> getInviteRecords(
+        @RequestParam Long userId,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size) {
+        return Mono.fromCallable(() -> inviteService.getInviteRecords(userId, page, size));
     }
 }
