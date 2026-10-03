@@ -33,6 +33,7 @@ import com.example.qylbackend.model.DeviceInfo;
 import com.example.qylbackend.model.MyOrder;
 import com.example.qylbackend.model.Suggest;
 import com.example.qylbackend.repository.AppVersionRepository;
+import java.util.Comparator;
 import java.time.LocalDateTime;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -550,9 +551,9 @@ public class UserController {
         order.setLastUseTime(LocalDateTime.now());
         orderRepository.save(order);
 
-        // 如果订单有关联的 deviceId，同步到 User 表
+        // 如果订单有关联的 deviceId，同步到 User 表（兜底老数据）
         if (order.getDeviceId() != null) {
-            User user = userRepository.findByDeviceId(order.getDeviceId());
+            User user = findPrimaryUserByDeviceId(order.getDeviceId());
             if (user != null && order.getUserId() == null) {
                 order.setUserId(user.getId());
                 orderRepository.save(order);
@@ -565,7 +566,8 @@ public class UserController {
         if (order.getUserId() != null) {
             vipUser = userRepository.findById(order.getUserId()).orElse(null);
         } else if (order.getDeviceId() != null) {
-            vipUser = userRepository.findByDeviceId(order.getDeviceId());
+            // 兜底老数据：设备级别支付，给最早注册的账号加 VIP
+            vipUser = findPrimaryUserByDeviceId(order.getDeviceId());
         }
         if (vipUser != null) {
             LocalDateTime now = LocalDateTime.now();
@@ -588,14 +590,11 @@ public class UserController {
     @GetMapping("/getstate")
     public Map<String, Object> getState(@RequestParam String deviceId ) {
         Map<String, Object> result = new HashMap<>();
-        // 先通过 deviceId 查找关联用户，使用新的 VIP 判断逻辑
-        User user = userRepository.findByDeviceId(deviceId);
-        if (user != null) {
-            boolean isVip = isVip(user);
-            result.put("state", isVip);
-            if (user.getVipExpireAt() != null) {
-                result.put("expireAt", user.getVipExpireAt().toString());
-            }
+        // 查找设备对应的所有账号中，VIP 到期最晚且未过期的
+        User bestVipUser = findBestVipUserByDeviceId(deviceId);
+        if (bestVipUser != null) {
+            result.put("state", true);
+            result.put("expireAt", bestVipUser.getVipExpireAt().toString());
             return result;
         }
         // 兜底：通过订单判断（兼容老数据）
@@ -884,17 +883,14 @@ public class UserController {
     @GetMapping("/getstate/v3")
     public Map<String, Object> getStateV3(@RequestParam String deviceId) {
         Map<String, Object> result = new HashMap<>();
-        User user = userRepository.findByDeviceId(deviceId);
-        if (user == null) {
+        // 查找设备对应的所有账号中，VIP 到期最晚且未过期的
+        User bestVipUser = findBestVipUserByDeviceId(deviceId);
+        if (bestVipUser == null) {
             result.put("state", false);
             return result;
         }
-        // 使用新的 VIP 判断逻辑
-        boolean isVip = isVip(user);
-        result.put("state", isVip);
-        if (user.getVipExpireAt() != null) {
-            result.put("expireAt", user.getVipExpireAt().toString());
-        }
+        result.put("state", true);
+        result.put("expireAt", bestVipUser.getVipExpireAt().toString());
         return result;
     }
 
@@ -908,6 +904,31 @@ public class UserController {
             return false;
         }
         return user.getVipExpireAt().isAfter(LocalDateTime.now());
+    }
+
+    /**
+     * 通过 deviceId 查找最早注册的用户（设备主人）
+     * 用于支付回调、订单关联等场景
+     */
+    private User findPrimaryUserByDeviceId(String deviceId) {
+        List<User> users = userRepository.findByDeviceId(deviceId);
+        if (users == null || users.isEmpty()) return null;
+        return users.stream()
+            .min(Comparator.comparing(User::getId))
+            .orElse(null);
+    }
+
+    /**
+     * 通过 deviceId 查找 VIP 到期时间最晚且未过期的用户
+     * 用于查询设备 VIP 状态：只要有任何一个账号有有效 VIP，设备就是 VIP
+     */
+    private User findBestVipUserByDeviceId(String deviceId) {
+        List<User> users = userRepository.findByDeviceId(deviceId);
+        if (users == null || users.isEmpty()) return null;
+        return users.stream()
+            .filter(u -> u.getVipExpireAt() != null && u.getVipExpireAt().isAfter(LocalDateTime.now()))
+            .max(Comparator.comparing(User::getVipExpireAt))
+            .orElse(null);
     }
 
     // ==================== 积分相关接口 ====================
