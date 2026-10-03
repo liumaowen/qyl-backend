@@ -1,6 +1,7 @@
 package com.example.qylbackend.model;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -34,6 +35,7 @@ public class User {
     // ===== 瞬乐币积分系统 =====
     private Integer points = 0;  // 瞬乐币余额
 
+    @Column(unique = true)
     private String inviteCode;   // 邀请码（8位字母数字，唯一）
 
     private Long invitedBy;      // 邀请人用户ID

@@ -10,12 +10,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 
 @Service
 public class InviteService {
@@ -29,9 +29,15 @@ public class InviteService {
     @Autowired
     private PointsService pointsService;
 
+    // 线程安全的随机数生成器，避免重复创建实例
+    private static final java.security.SecureRandom SECURE_RANDOM = new java.security.SecureRandom();
+    // 生成邀请码时的最大重试次数
+    private static final int MAX_RETRY = 5;
+
     /**
      * 生成邀请码
      */
+    @Transactional
     public String generateInviteCode(Long userId) {
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return null;
@@ -40,18 +46,34 @@ public class InviteService {
             return user.getInviteCode();
         }
 
-        // 生成8位字母数字邀请码
         String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        StringBuilder code = new StringBuilder();
-        Random random = new Random();
-        for (int i = 0; i < 8; i++) {
-            code.append(chars.charAt(random.nextInt(chars.length())));
-        }
+        String code;
+        int retry = 0;
 
-        user.setInviteCode(code.toString());
+        // 生成邀请码并检查唯一性
+        do {
+            code = generateRandomCode(chars, 8);
+            retry++;
+            if (retry > MAX_RETRY) {
+                throw new RuntimeException("生成邀请码失败，请稍后重试");
+            }
+        } while (userRepository.findByInviteCode(code).isPresent());
+
+        user.setInviteCode(code);
         userRepository.save(user);
 
-        return code.toString();
+        return code;
+    }
+
+    /**
+     * 生成随机邀请码
+     */
+    private String generateRandomCode(String chars, int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(chars.charAt(SECURE_RANDOM.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 
     /**
