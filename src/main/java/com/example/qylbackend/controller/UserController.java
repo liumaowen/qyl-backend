@@ -352,6 +352,9 @@ public class UserController {
     // 保存设备信息
     @PostMapping("/savedevice")
     public DeviceInfo saveDevice(@RequestBody DeviceInfo deviceInfo) {
+        if (deviceInfo == null || deviceInfo.getEvent() == null || deviceInfo.getEvent().isEmpty()) {
+            return null;
+        }
         if (deviceInfo.getDeviceId() != null) {
             Device device = deviceRepository.findByDeviceId(deviceInfo.getDeviceId());
             if (device != null) {
