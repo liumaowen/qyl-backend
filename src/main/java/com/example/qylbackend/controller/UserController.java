@@ -376,10 +376,42 @@ public class UserController {
         return suggestRepository.save(suggest);
     }
 
-    // 查询设备信息（通过deviceId）
+    // 查询设备信息（支持 lastUseTime 日期区间过滤）
     @GetMapping("/getdevice")
-    public List<DeviceInfo> getDevice() {
-        return deviceInfoRepository.findAll();
+    public List<DeviceInfo> getDevice(
+            @RequestParam(required = false) String start,
+            @RequestParam(required = false) String end) {
+        java.time.format.DateTimeFormatter dateFmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        LocalDateTime startT = null;
+        LocalDateTime endT = null;
+        if (start != null && !start.trim().isEmpty()) {
+            startT = java.time.LocalDate.parse(start.trim(), dateFmt).atStartOfDay();
+        }
+        if (end != null && !end.trim().isEmpty()) {
+            endT = java.time.LocalDate.parse(end.trim(), dateFmt).atTime(23, 59, 59);
+        }
+
+        final LocalDateTime finalStartT = startT;
+        final LocalDateTime finalEndT = endT;
+
+        org.springframework.data.jpa.domain.Specification<DeviceInfo> spec =
+            (root, query, cb) -> {
+                List<jakarta.persistence.criteria.Predicate> preds = new ArrayList<>();
+                if (finalStartT != null) {
+                    preds.add(cb.greaterThanOrEqualTo(root.get("lastUseTime"), finalStartT));
+                }
+                if (finalEndT != null) {
+                    preds.add(cb.lessThanOrEqualTo(root.get("lastUseTime"), finalEndT));
+                }
+                if (preds.isEmpty()) {
+                    return null;
+                }
+                return cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            };
+
+        org.springframework.data.domain.Sort sort =
+            org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "lastUseTime");
+        return deviceInfoRepository.findAll(spec, sort);
     }
     // 创建订单
     @GetMapping("/createorder")
