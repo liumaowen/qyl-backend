@@ -406,7 +406,7 @@ public class UserController {
         }
 
         // 批量保存事件
-        int savedCount = 0;
+        List<DeviceInfo> eventsToSave = new ArrayList<>();
         for (DeviceInfo event : batchData.getEvents()) {
             // 合并 common_data 到每个事件
             if (deviceId != null) event.setDeviceId(deviceId);
@@ -440,11 +440,14 @@ public class UserController {
                 event.setLastUseTime(LocalDateTime.now());
             }
 
-            deviceInfoRepository.save(event);
-            savedCount++;
+            eventsToSave.add(event);
         }
+
+        // 批量保存
+        deviceInfoRepository.saveAll(eventsToSave);
+
         result.put("success", true);
-        result.put("count", savedCount);
+        result.put("count", eventsToSave.size());
         return result;
     }
 
