@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import com.example.qylbackend.dto.ApkInfo;
+import com.example.qylbackend.dto.BatchDeviceInfo;
 import com.example.qylbackend.dto.SiteUrlData;
 import org.springframework.beans.factory.annotation.Value;
 import java.io.IOException;
@@ -368,6 +369,83 @@ public class UserController {
             deviceRepository.save(device);
         }
         return deviceInfoRepository.save(deviceInfo);
+    }
+
+    // 批量保存设备信息
+    @PostMapping("/savedevice/batch")
+    public Map<String, Object> saveBatchDevice(@RequestBody BatchDeviceInfo batchData) {
+        Map<String, Object> result = new HashMap<>();
+        if (batchData == null || batchData.getEvents() == null || batchData.getEvents().isEmpty()) {
+            result.put("success", false);
+            result.put("msg", "事件列表为空");
+            return result;
+        }
+
+        Map<String, Object> commonData = batchData.getCommonData();
+
+        // 从 common_data 提取通用字段
+        String deviceId = commonData != null ? (String) commonData.get("deviceId") : null;
+        String deviceModel = commonData != null ? (String) commonData.get("deviceModel") : null;
+        String platform = commonData != null ? (String) commonData.get("platform") : null;
+        String appVersion = commonData != null ? (String) commonData.get("appVersion") : null;
+        String ipAddress = commonData != null ? (String) commonData.get("ipAddress") : null;
+        String address = commonData != null ? (String) commonData.get("address") : null;
+
+        // 更新 Device 表
+        if (deviceId != null && !deviceId.isEmpty()) {
+            Device device = deviceRepository.findByDeviceId(deviceId);
+            if (device != null) {
+                device.setLastUseTime(LocalDateTime.now());
+            } else {
+                device = new Device();
+                device.setDeviceId(deviceId);
+                device.setFirstUseTime(LocalDateTime.now());
+                device.setLastUseTime(LocalDateTime.now());
+            }
+            deviceRepository.save(device);
+        }
+
+        // 批量保存事件
+        int savedCount = 0;
+        for (DeviceInfo event : batchData.getEvents()) {
+            // 合并 common_data 到每个事件
+            if (deviceId != null) event.setDeviceId(deviceId);
+            if (deviceModel != null) event.setDeviceModel(deviceModel);
+            if (platform != null) event.setPlatform(platform);
+            if (appVersion != null) event.setAppVersion(appVersion);
+            if (ipAddress != null) event.setIpAddress(ipAddress);
+            if (address != null) event.setAddress(address);
+
+            // 使用 useCount 和 firstUseTime（从 common_data 传递）
+            if (commonData != null) {
+                Integer useCount = (Integer) commonData.get("useCount");
+                if (useCount != null) event.setUseCount(useCount);
+
+                String firstUseTimeStr = (String) commonData.get("firstUseTime");
+                if (firstUseTimeStr != null && !firstUseTimeStr.isEmpty()) {
+                    try {
+                        java.time.format.DateTimeFormatter formatter =
+                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                        LocalDateTime firstUseTime = LocalDateTime.parse(firstUseTimeStr, formatter);
+                        event.setFirstUseTime(firstUseTime);
+                    } catch (Exception e) {
+                        // 解析失败，使用当前时间
+                        event.setFirstUseTime(LocalDateTime.now());
+                    }
+                }
+            }
+
+            // 如果没有 lastUseTime，使用当前时间
+            if (event.getLastUseTime() == null) {
+                event.setLastUseTime(LocalDateTime.now());
+            }
+
+            deviceInfoRepository.save(event);
+            savedCount++;
+        }
+        result.put("success", true);
+        result.put("count", savedCount);
+        return result;
     }
 
     // 保存建议
